@@ -2,36 +2,34 @@
   <div class="content-page">
     <div class="page-header">
       <div class="header-content">
-        <h2 class="page-title">📄 {{ contentTitle }}</h2>
-        <p class="page-subtitle">测试系统v1.0内容详情</p>
+        <div class="title-section">
+          <h2 class="page-title">{{ contentTitle }}</h2>
+          <span class="title-badge">详情</span>
+        </div>
+        <p class="page-subtitle">内容分析结果</p>
       </div>
-      <button class="btn btn-back" @click="$emit('navigate', 'browse')">
-        <span class="back-icon">←</span>
-        返回浏览
+      <button class="btn-back" @click="$emit('navigate', 'browse')">
+        <svg class="back-icon" viewBox="0 0 24 24" fill="none">
+          <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>返回浏览</span>
       </button>
     </div>
 
     <div class="content-container">
-      <!-- 2x2 文本展示框 -->
-      <div class="content-grid">
-        <div class="text-box">
-          <h3>总体评价</h3>
-          <div class="text-content">
-            <div v-if="parsedSections.overall_evaluation" v-html="parsedSections.overall_evaluation"></div>
-            <div v-else class="no-content">暂无总体评价内容</div>
-          </div>
+      <!-- 总体评价长条 -->
+      <div class="overall-evaluation-bar">
+        <h3>📊 总体评价</h3>
+        <div class="evaluation-content">
+          <div v-if="parsedSections.overall_evaluation" v-html="parsedSections.overall_evaluation"></div>
+          <div v-else class="no-content">暂无总体评价内容</div>
         </div>
+      </div>
 
+      <!-- 主要内容区域 -->
+      <div class="main-content-grid">
         <div class="text-box">
-          <h3>原文本</h3>
-          <div class="text-content">
-            <div v-if="parsedSections.original_text" v-html="parsedSections.original_text"></div>
-            <div v-else class="no-content">暂无原文本内容</div>
-          </div>
-        </div>
-
-        <div class="text-box">
-          <h3>总体建议</h3>
+          <h3>💡 总体建议</h3>
           <div class="text-content">
             <div v-if="parsedSections.general_suggestions" v-html="parsedSections.general_suggestions"></div>
             <div v-else class="no-content">暂无总体建议内容</div>
@@ -39,7 +37,7 @@
         </div>
 
         <div class="text-box">
-          <h3>润色文本</h3>
+          <h3>✨ 润色文本</h3>
           <div class="polish-options">
             <label class="checkbox-label">
               <input type="checkbox" v-model="polishTextOptions.showModifications" class="checkbox">
@@ -100,6 +98,7 @@ const loading = ref(false)
 
 const contentTitle = computed(() => contentData.value?.title || '内容详情')
 const videoSrc = computed(() => contentData.value?.video || '')
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const markdownHtml = computed(() =>
   contentData.value?.markdown ? markdownToHtml(contentData.value.markdown) : ''
 )
@@ -323,52 +322,89 @@ defineExpose({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 25px 30px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-bottom: 25px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 20px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .header-content {
   flex: 1;
 }
 
+.title-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
 .page-title {
   color: white;
-  font-size: 1.8rem;
+  font-size: 1.75rem;
   font-weight: 700;
-  margin: 0 0 8px 0;
+  margin: 0;
   text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
+.title-badge {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-shadow: none;
+  box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+}
+
 .page-subtitle {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+  font-weight: 500;
   margin: 0;
+  opacity: 0.9;
 }
 
 .btn-back {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 12px 20px;
-  border-radius: 12px;
+  padding: 10px 18px;
+  border-radius: 16px;
   font-weight: 600;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
 }
 
 .btn-back:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.2) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-back:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .back-icon {
-  font-size: 1.2rem;
+  width: 18px;
+  height: 18px;
+  transition: transform 0.2s ease;
+}
+
+.btn-back:hover .back-icon {
+  transform: translateX(-2px);
 }
 
 .content-container {
@@ -378,23 +414,67 @@ defineExpose({
   box-shadow: 0 15px 35px rgba(0,0,0,0.1);
 }
 
-/* 2x2 网格布局 */
-.content-grid {
+/* 总体评价长条样式 */
+.overall-evaluation-bar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 25px 30px;
+  margin-bottom: 25px;
+  color: white;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.overall-evaluation-bar h3 {
+  color: white;
+  margin: 0 0 15px 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  border: none;
+  padding: 0;
+}
+
+.evaluation-content {
+  line-height: 1.7;
+  font-size: 1.05rem;
+}
+
+.evaluation-content div {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.overall-evaluation-bar .no-content {
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
+}
+
+/* 主要内容区域 - 1x2 网格布局 */
+.main-content-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 25px;
   margin-bottom: 40px;
 }
 
 /* 文本框样式 */
 .text-box {
   background: #f7fafc;
-  padding: 20px;
-  border-radius: 12px;
+  padding: 25px;
+  border-radius: 16px;
   border: 1px solid #e2e8f0;
-  min-height: 200px;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+  transition: all 0.3s ease;
+}
+
+.text-box:hover {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
 }
 
 .text-box h3 {
@@ -597,9 +677,33 @@ defineExpose({
 
   .page-header {
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
     align-items: stretch;
     text-align: center;
+    padding: 16px 24px;
+  }
+
+  .title-section {
+    justify-content: center;
+    margin-bottom: 4px;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  .title-badge {
+    font-size: 0.7rem;
+    padding: 3px 10px;
+  }
+
+  .page-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .btn-back {
+    align-self: center;
+    padding: 10px 16px;
   }
 
   .content-container {
@@ -607,10 +711,23 @@ defineExpose({
   }
 
   /* 移动端单列布局 */
-  .content-grid {
+  .main-content-grid {
     grid-template-columns: 1fr;
     gap: 15px;
     margin-bottom: 30px;
+  }
+
+  .overall-evaluation-bar {
+    padding: 20px 25px;
+    margin-bottom: 20px;
+  }
+
+  .overall-evaluation-bar h3 {
+    font-size: 1.2rem;
+  }
+
+  .evaluation-content {
+    font-size: 1rem;
   }
 
   .text-box {
