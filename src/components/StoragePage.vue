@@ -106,6 +106,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { database, type FileData } from '../utils/database'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const storageInfo = ref<any>(null)
 const allData = ref<FileData[]>([])
 const loading = ref(false)

@@ -119,7 +119,6 @@ const parseMarkdownSections = (markdown: string) => {
 
   const sections: Record<string, string> = {}
 
-  // 按一级标题分割内容
   const parts = markdown.split(/^# /gm).filter(part => part.trim())
 
   parts.forEach(part => {
@@ -127,7 +126,6 @@ const parseMarkdownSections = (markdown: string) => {
     const title = lines[0].trim()
     const content = lines.slice(1).join('\n').trim()
 
-    // 根据标题映射到对应的字段
     if (title.includes('总体评价') || title.includes('评价')) {
       sections.overall_evaluation = markdownToHtml(content)
     } else if (title.includes('原文本') || title.includes('原文') || title.includes('原始')) {
@@ -142,12 +140,10 @@ const parseMarkdownSections = (markdown: string) => {
   return sections
 }
 
-// 解析后的四个部分内容
 const parsedSections = computed(() =>
   contentData.value?.markdown ? parseMarkdownSections(contentData.value.markdown) : {}
 )
 
-// 润色文本显示选项
 const polishTextOptions = ref({
   showModifications: false,    // 增减修改
   showVoiceIntonation: false,  // 语音语调
@@ -163,32 +159,23 @@ const filterPolishedText = (htmlContent: string) => {
 
   let filteredContent = htmlContent
 
-  // 如果没有选择任何选项，显示纯净的修改后文本
   if (!polishTextOptions.value.showModifications &&
       !polishTextOptions.value.showVoiceIntonation) {
-    // 移除删除标记
     filteredContent = filteredContent.replace(/<del>.*?<\/del>/gs, '')
-    // 移除所有语音语调和肢体动作标记（支持多种格式）
     filteredContent = removeVoiceIntonationTags(filteredContent)
     filteredContent = removeBodyLanguageTags(filteredContent)
-    // 最后移除新增内容的蓝色样式，保留内容
     filteredContent = removeBlueStyling(filteredContent)
     return filteredContent
   }
 
-  // 关键修改：先移除不需要显示的标记，再处理蓝色样式
-  // 这样可以确保在移除蓝色样式时，不需要的标记已经被清理
+
   if (!polishTextOptions.value.showVoiceIntonation) {
-    // 不显示语音语调：移除语音语调标记
     filteredContent = removeVoiceIntonationTags(filteredContent)
   }
 
-  // 总是移除肢体动作标记（因为已移除此选项）
   filteredContent = removeBodyLanguageTags(filteredContent)
 
-  // 最后处理增减修改的显示
   if (!polishTextOptions.value.showModifications) {
-    // 不显示增减修改：移除删除标记和蓝色样式
     filteredContent = filteredContent.replace(/<del>.*?<\/del>/gs, '')
     filteredContent = removeBlueStyling(filteredContent)
   }
@@ -511,7 +498,6 @@ defineExpose({
   color: #2d3748;
 }
 
-/* 润色文本选项样式 */
 .polish-options {
   display: flex;
   justify-content: space-between;
