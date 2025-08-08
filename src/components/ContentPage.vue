@@ -39,20 +39,30 @@
         <div class="text-box">
           <h3>✨ 润色文本</h3>
           <div class="polish-options">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="polishTextOptions.showModifications" class="checkbox">
-              增减修改
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="polishTextOptions.showVoiceIntonation" class="checkbox">
-              语音语调
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="polishTextOptions.showBodyLanguage" class="checkbox">
-              肢体动作
-            </label>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="polishTextOptions.showModifications" class="checkbox">
+                增减修改
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="polishTextOptions.showVoiceIntonation" class="checkbox">
+                语音语调
+              </label>
+            </div>
+            <button
+              class="show-original-btn"
+              :class="{ active: showOriginalText }"
+              @click="toggleOriginalText"
+            >
+              {{ showOriginalText ? '隐藏原文' : '显示原文' }}
+            </button>
           </div>
           <div class="text-content">
+            <div v-if="showOriginalText && parsedSections.original_text" class="original-text-display">
+              <h4>📄 原文本</h4>
+              <div v-html="parsedSections.original_text"></div>
+              <div class="divider"></div>
+            </div>
             <div v-if="filteredPolishedText" v-html="filteredPolishedText"></div>
             <div v-else class="no-content">暂无润色文本内容</div>
           </div>
@@ -144,6 +154,9 @@ const polishTextOptions = ref({
   showBodyLanguage: false      // 肢体动作
 })
 
+// 原文本显示控制
+const showOriginalText = ref(false)
+
 // 过滤润色文本内容
 const filterPolishedText = (htmlContent: string) => {
   if (!htmlContent) return ''
@@ -152,8 +165,7 @@ const filterPolishedText = (htmlContent: string) => {
 
   // 如果没有选择任何选项，显示纯净的修改后文本
   if (!polishTextOptions.value.showModifications &&
-      !polishTextOptions.value.showVoiceIntonation &&
-      !polishTextOptions.value.showBodyLanguage) {
+      !polishTextOptions.value.showVoiceIntonation) {
     // 移除删除标记
     filteredContent = filteredContent.replace(/<del>.*?<\/del>/gs, '')
     // 移除所有语音语调和肢体动作标记（支持多种格式）
@@ -171,10 +183,8 @@ const filterPolishedText = (htmlContent: string) => {
     filteredContent = removeVoiceIntonationTags(filteredContent)
   }
 
-  if (!polishTextOptions.value.showBodyLanguage) {
-    // 不显示肢体动作：移除肢体动作标记
-    filteredContent = removeBodyLanguageTags(filteredContent)
-  }
+  // 总是移除肢体动作标记（因为已移除此选项）
+  filteredContent = removeBodyLanguageTags(filteredContent)
 
   // 最后处理增减修改的显示
   if (!polishTextOptions.value.showModifications) {
@@ -292,6 +302,11 @@ const loadContent = async () => {
 const handleVideoError = (event: Event) => {
   console.error('视频加载失败:', event)
   alert('视频加载失败，可能是文件格式不支持或文件已损坏')
+}
+
+// 切换原文本显示状态
+const toggleOriginalText = () => {
+  showOriginalText.value = !showOriginalText.value
 }
 
 // 监听props变化，重新加载内容
@@ -499,11 +514,18 @@ defineExpose({
 /* 润色文本选项样式 */
 .polish-options {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
   gap: 15px;
   margin-bottom: 15px;
   padding: 10px 0;
   border-bottom: 1px solid #e2e8f0;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
 .checkbox-label {
@@ -550,6 +572,62 @@ defineExpose({
 .checkbox:hover {
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* 显示原文按钮样式 */
+.show-original-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  white-space: nowrap;
+}
+
+.show-original-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.show-original-btn.active {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+}
+
+.show-original-btn.active:hover {
+  box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+/* 原文本显示区域样式 */
+.original-text-display {
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #e2e8f0;
+}
+
+.original-text-display h4 {
+  color: #4a5568;
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.original-text-display div {
+  color: #2d3748;
+  line-height: 1.6;
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #e2e8f0 50%, transparent 100%);
+  margin: 16px 0 0 0;
 }
 
 /* 视频部分样式 */
@@ -743,10 +821,21 @@ defineExpose({
   .polish-options {
     flex-direction: column;
     gap: 10px;
+    align-items: flex-start;
+  }
+
+  .checkbox-group {
+    width: 100%;
   }
 
   .checkbox-label {
     font-size: 0.85rem;
+  }
+
+  .show-original-btn {
+    align-self: flex-start;
+    font-size: 0.8rem;
+    padding: 5px 12px;
   }
 }
 </style>

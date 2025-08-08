@@ -11,22 +11,22 @@ const STORE_NAME = 'files';
 function initDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
-        
+
         request.onerror = () => {
             console.error('IndexedDB 打开失败:', request.error);
             reject(request.error);
         };
-        
+
         request.onsuccess = () => {
             db = request.result;
             console.log('IndexedDB 连接成功');
             resolve(db);
         };
-        
+
         request.onupgradeneeded = (event) => {
             db = event.target.result;
             console.log('IndexedDB 升级中...');
-            
+
             // 创建对象存储
             if (!db.objectStoreNames.contains(STORE_NAME)) {
                 const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
@@ -44,13 +44,13 @@ async function showPageAsync(pageId) {
     // 隐藏所有页面
     const pages = document.querySelectorAll('.page');
     pages.forEach(page => page.classList.remove('active'));
-    
+
     // 显示指定页面
     const targetPage = document.getElementById(pageId);
     if (targetPage) {
         targetPage.classList.add('active');
     }
-    
+
     // 重置表单和初始化页面
     if (pageId === 'upload-page') {
         document.getElementById('upload-form').reset();
@@ -83,7 +83,7 @@ function showMessage(text, type = 'success') {
     messageDiv.textContent = text;
     messageDiv.className = `message ${type}`;
     messageDiv.classList.remove('hidden');
-    
+
     setTimeout(() => {
         messageDiv.classList.add('hidden');
     }, 3000);
@@ -103,14 +103,14 @@ function showLoading(show = true) {
 async function saveData(userId, title, videoData, markdownContent) {
     try {
         console.log('开始保存数据到IndexedDB...', { userId, title });
-        
+
         if (!db) {
             throw new Error('数据库未初始化');
         }
-        
+
         // 创建唯一ID
         const id = `${userId}:${title}`;
-        
+
         // 准备数据对象
         const dataObject = {
             id: id,
@@ -120,39 +120,39 @@ async function saveData(userId, title, videoData, markdownContent) {
             markdown: markdownContent,
             timestamp: new Date().toISOString()
         };
-        
+
         // 计算数据大小
         const dataSize = new Blob([JSON.stringify(dataObject)]).size;
         const dataSizeMB = (dataSize / 1024 / 1024).toFixed(2);
         console.log('数据大小:', dataSizeMB + ' MB');
-        
+
         // 开始事务
         const transaction = db.transaction([STORE_NAME], 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
-        
+
         return new Promise((resolve, reject) => {
             const request = store.put(dataObject);
-            
+
             request.onsuccess = () => {
                 console.log('数据保存成功，大小:', dataSizeMB + ' MB');
                 resolve(true);
             };
-            
+
             request.onerror = () => {
                 console.error('数据保存失败:', request.error);
                 reject(request.error);
             };
-            
+
             transaction.oncomplete = () => {
                 console.log('事务完成');
             };
-            
+
             transaction.onerror = () => {
                 console.error('事务失败:', transaction.error);
                 reject(transaction.error);
             };
         });
-        
+
     } catch (error) {
         console.error('保存数据失败:', error);
         alert('保存失败: ' + error.message);
@@ -165,27 +165,27 @@ async function getUserTitles(userId) {
         if (!db) {
             throw new Error('数据库未初始化');
         }
-        
+
         const transaction = db.transaction([STORE_NAME], 'readonly');
         const store = transaction.objectStore(STORE_NAME);
         const index = store.index('userId');
-        
+
         return new Promise((resolve, reject) => {
             const request = index.getAll(userId);
-            
+
             request.onsuccess = () => {
                 const results = request.result;
                 const titles = results.map(item => item.title);
                 console.log(`找到用户 ${userId} 的标题:`, titles);
                 resolve(titles);
             };
-            
+
             request.onerror = () => {
                 console.error('获取用户标题失败:', request.error);
                 reject(request.error);
             };
         });
-        
+
     } catch (error) {
         console.error('获取用户标题失败:', error);
         return [];
@@ -197,14 +197,14 @@ async function getUserContent(userId, title) {
         if (!db) {
             throw new Error('数据库未初始化');
         }
-        
+
         const transaction = db.transaction([STORE_NAME], 'readonly');
         const store = transaction.objectStore(STORE_NAME);
         const id = `${userId}:${title}`;
-        
+
         return new Promise((resolve, reject) => {
             const request = store.get(id);
-            
+
             request.onsuccess = () => {
                 const result = request.result;
                 if (result) {
@@ -215,13 +215,13 @@ async function getUserContent(userId, title) {
                     resolve(null);
                 }
             };
-            
+
             request.onerror = () => {
                 console.error('获取用户内容失败:', request.error);
                 reject(request.error);
             };
         });
-        
+
     } catch (error) {
         console.error('获取用户内容失败:', error);
         return null;
@@ -234,29 +234,29 @@ async function getStorageInfo() {
         if (!db) {
             throw new Error('数据库未初始化');
         }
-        
+
         const transaction = db.transaction([STORE_NAME], 'readonly');
         const store = transaction.objectStore(STORE_NAME);
-        
+
         return new Promise((resolve, reject) => {
             const request = store.getAll();
-            
+
             request.onsuccess = () => {
                 const results = request.result;
                 let totalSize = 0;
                 const userInfo = {};
-                
+
                 // 计算总大小和用户信息
                 results.forEach(item => {
                     const itemSize = new Blob([JSON.stringify(item)]).size;
                     totalSize += itemSize;
-                    
+
                     if (!userInfo[item.userId]) {
                         userInfo[item.userId] = 0;
                     }
                     userInfo[item.userId]++;
                 });
-                
+
                 const storageInfo = {
                     totalSize: totalSize,
                     totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
@@ -264,17 +264,17 @@ async function getStorageInfo() {
                     userCount: Object.keys(userInfo).length,
                     userInfo: userInfo
                 };
-                
+
                 console.log('存储信息:', storageInfo);
                 resolve(storageInfo);
             };
-            
+
             request.onerror = () => {
                 console.error('获取存储信息失败:', request.error);
                 reject(request.error);
             };
         });
-        
+
     } catch (error) {
         console.error('获取存储信息失败:', error);
         return null;
@@ -287,25 +287,25 @@ async function deleteUserContent(userId, title) {
         if (!db) {
             throw new Error('数据库未初始化');
         }
-        
+
         const transaction = db.transaction([STORE_NAME], 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
         const id = `${userId}:${title}`;
-        
+
         return new Promise((resolve, reject) => {
             const request = store.delete(id);
-            
+
             request.onsuccess = () => {
                 console.log(`已删除: ${userId}/${title}`);
                 resolve(true);
             };
-            
+
             request.onerror = () => {
                 console.error('删除数据失败:', request.error);
                 reject(request.error);
             };
         });
-        
+
     } catch (error) {
         console.error('删除数据失败:', error);
         return false;
@@ -318,24 +318,24 @@ async function clearAllData() {
         if (!db) {
             throw new Error('数据库未初始化');
         }
-        
+
         const transaction = db.transaction([STORE_NAME], 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
-        
+
         return new Promise((resolve, reject) => {
             const request = store.clear();
-            
+
             request.onsuccess = () => {
                 console.log('所有数据已清空');
                 resolve(true);
             };
-            
+
             request.onerror = () => {
                 console.error('清空数据失败:', request.error);
                 reject(request.error);
             };
         });
-        
+
     } catch (error) {
         console.error('清空数据失败:', error);
         return false;
@@ -348,25 +348,25 @@ async function getAllData() {
         if (!db) {
             throw new Error('数据库未初始化');
         }
-        
+
         const transaction = db.transaction([STORE_NAME], 'readonly');
         const store = transaction.objectStore(STORE_NAME);
-        
+
         return new Promise((resolve, reject) => {
             const request = store.getAll();
-            
+
             request.onsuccess = () => {
                 const results = request.result;
                 console.log('获取到所有数据:', results.length, '条');
                 resolve(results);
             };
-            
+
             request.onerror = () => {
                 console.error('获取所有数据失败:', request.error);
                 reject(request.error);
             };
         });
-        
+
     } catch (error) {
         console.error('获取所有数据失败:', error);
         return [];
@@ -377,7 +377,7 @@ async function getAllData() {
 function handleFileSelect(input, infoElementId) {
     const file = input.files[0];
     const infoElement = document.getElementById(infoElementId);
-    
+
     if (file) {
         const fileSize = (file.size / 1024 / 1024).toFixed(2);
         infoElement.innerHTML = `
@@ -400,17 +400,17 @@ function clearFileInfo() {
 function readFileAsDataURL(file) {
     return new Promise((resolve, reject) => {
         console.log('开始读取视频文件:', file.name, file.type, (file.size / 1024 / 1024).toFixed(2) + ' MB');
-        
+
         if (!file) {
             reject(new Error('没有选择文件'));
             return;
         }
-        
+
         if (file.size > 50 * 1024 * 1024) { // 50MB限制
             reject(new Error('视频文件过大，请选择小于50MB的文件'));
             return;
         }
-        
+
         const reader = new FileReader();
         reader.onload = e => {
             console.log('视频文件读取成功');
@@ -427,17 +427,17 @@ function readFileAsDataURL(file) {
 function readFileAsText(file) {
     return new Promise((resolve, reject) => {
         console.log('开始读取Markdown文件:', file.name, file.type, (file.size / 1024).toFixed(2) + ' KB');
-        
+
         if (!file) {
             reject(new Error('没有选择文件'));
             return;
         }
-        
+
         if (file.size > 1024 * 1024) { // 1MB限制
             reject(new Error('Markdown文件过大，请选择小于1MB的文件'));
             return;
         }
-        
+
         const reader = new FileReader();
         reader.onload = e => {
             console.log('Markdown文件读取成功');
@@ -454,35 +454,35 @@ function readFileAsText(file) {
 // Markdown转HTML函数（简单实现）
 function markdownToHtml(markdown) {
     let html = markdown;
-    
+
     // 标题
     html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
     html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
     html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-    
+
     // 粗体和斜体
     html = html.replace(/\*\*\*(.*)\*\*\*/gim, '<strong><em>$1</em></strong>');
     html = html.replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>');
     html = html.replace(/\*(.*)\*/gim, '<em>$1</em>');
-    
+
     // 代码
     html = html.replace(/`([^`]+)`/gim, '<code>$1</code>');
     html = html.replace(/```([^`]+)```/gim, '<pre><code>$1</code></pre>');
-    
+
     // 链接
     html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/gim, '<a href="$2" target="_blank">$1</a>');
-    
+
     // 列表
     html = html.replace(/^\* (.*$)/gim, '<li>$1</li>');
     html = html.replace(/^\d+\. (.*$)/gim, '<li>$1</li>');
-    
+
     // 包装列表项
     html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
-    
+
     // 段落
     html = html.replace(/\n\n/gim, '</p><p>');
     html = '<p>' + html + '</p>';
-    
+
     // 清理空段落
     html = html.replace(/<p><\/p>/gim, '');
     html = html.replace(/<p>\s*<h/gim, '<h');
@@ -491,7 +491,7 @@ function markdownToHtml(markdown) {
     html = html.replace(/<\/ul>\s*<\/p>/gim, '</ul>');
     html = html.replace(/<p>\s*<pre>/gim, '<pre>');
     html = html.replace(/<\/pre>\s*<\/p>/gim, '</pre>');
-    
+
     return html;
 }
 
@@ -499,18 +499,18 @@ function markdownToHtml(markdown) {
 async function loadTitles() {
     const userId = document.getElementById('browse-user-id').value.trim();
     const titleSelect = document.getElementById('browse-title');
-    
+
     if (!userId) {
         showMessage('请先输入用户ID', 'error');
         return;
     }
-    
+
     showLoading(true);
-    
+
     try {
         const titles = await getUserTitles(userId);
         titleSelect.innerHTML = '';
-        
+
         if (titles.length === 0) {
             titleSelect.innerHTML = '<option value="">该用户暂无上传内容</option>';
             showMessage('该用户暂无上传内容', 'error');
@@ -547,26 +547,26 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('video-file').addEventListener('change', function() {
         handleFileSelect(this, 'video-info');
     });
-    
+
     document.getElementById('markdown-file').addEventListener('change', function() {
         handleFileSelect(this, 'markdown-info');
     });
-    
+
     // 上传表单提交
     document.getElementById('upload-form').addEventListener('submit', async function(e) {
         e.preventDefault();
-        
+
         const userId = document.getElementById('upload-user-id').value.trim();
         const title = document.getElementById('upload-title').value.trim();
         const videoFile = document.getElementById('video-file').files[0];
         const markdownFile = document.getElementById('markdown-file').files[0];
-        
+
         // 验证输入
         if (!userId || !title || !videoFile || !markdownFile) {
             showMessage('请填写所有必需的字段', 'error');
             return;
         }
-        
+
         // 检查标题是否已存在
         const existingTitles = await getUserTitles(userId);
         if (existingTitles.includes(title)) {
@@ -574,48 +574,48 @@ document.addEventListener('DOMContentLoaded', async function() {
                 return;
             }
         }
-        
+
         showLoading(true);
-        
+
         try {
             console.log('=== 主应用上传流程开始 ===');
             console.log(`数据库状态: ${db ? '已连接' : '未连接'}`);
             console.log(`视频文件: ${videoFile.name} (${(videoFile.size / 1024 / 1024).toFixed(2)} MB)`);
             console.log(`Markdown文件: ${markdownFile.name} (${(markdownFile.size / 1024).toFixed(2)} KB)`);
-            
+
             // 验证数据库连接
             if (!db) {
                 throw new Error('数据库未初始化，请刷新页面重试');
             }
-            
+
             // 验证文件类型
             if (!videoFile.type.startsWith('video/')) {
                 throw new Error('请选择有效的视频文件');
             }
-            
+
             const markdownExtension = markdownFile.name.toLowerCase().split('.').pop();
             if (!['md', 'markdown'].includes(markdownExtension)) {
                 throw new Error('请选择有效的Markdown文件（.md或.markdown）');
             }
-            
+
             // 估算转换后的大小（Base64编码会增加约33%的大小）
             const estimatedSize = (videoFile.size + markdownFile.size) * 1.4; // 40%的缓冲
             const estimatedSizeMB = (estimatedSize / 1024 / 1024).toFixed(2);
             console.log(`预估转换后大小: ${estimatedSizeMB} MB`);
-            
+
             // 读取文件
             console.log('读取文件中...');
             const videoData = await readFileAsDataURL(videoFile);
             const markdownContent = await readFileAsText(markdownFile);
-            
+
             console.log('文件读取完成，开始保存...');
             console.log(`实际视频数据大小: ${(new Blob([videoData]).size / 1024 / 1024).toFixed(2)} MB`);
-            
+
             // 保存数据
             console.log('调用saveData函数...');
             const success = await saveData(userId, title, videoData, markdownContent);
             console.log('saveData函数返回结果:', success);
-            
+
             if (success) {
                 showMessage('文件上传成功！', 'success');
                 document.getElementById('upload-form').reset();
@@ -633,24 +633,24 @@ document.addEventListener('DOMContentLoaded', async function() {
             showLoading(false);
         }
     });
-    
+
     // 浏览表单提交
     document.getElementById('browse-form').addEventListener('submit', async function(e) {
         e.preventDefault();
-        
+
         const userId = document.getElementById('browse-user-id').value.trim();
         const title = document.getElementById('browse-title').value;
-        
+
         if (!userId || !title) {
             showMessage('请填写用户ID并选择标题', 'error');
             return;
         }
-        
+
         showLoading(true);
-        
+
         try {
             const content = await getUserContent(userId, title);
-            
+
             if (content) {
                 displayContent(title, content);
                 showPageAsync('content-page');
@@ -670,11 +670,11 @@ document.addEventListener('DOMContentLoaded', async function() {
 // 显示内容
 function displayContent(title, content) {
     document.getElementById('content-title').textContent = title;
-    
+
     // 显示视频
     const video = document.getElementById('content-video');
     video.src = content.video;
-    
+
     // 显示Markdown内容
     const markdownDiv = document.getElementById('content-markdown');
     markdownDiv.innerHTML = markdownToHtml(content.markdown);
@@ -684,29 +684,29 @@ function displayContent(title, content) {
 async function refreshStorageInfo() {
     const statsDiv = document.getElementById('storage-stats');
     const contentDiv = document.getElementById('storage-content');
-    
+
     try {
         const storageInfo = await getStorageInfo();
-        
+
         if (!storageInfo) {
             statsDiv.innerHTML = '<div class="storage-warning">无法获取存储信息</div>';
             contentDiv.innerHTML = '';
             return;
         }
-        
+
         // IndexedDB 通常有更大的存储限制（几GB）
         const estimatedLimit = 1000 * 1024 * 1024; // 1GB估算
         const usagePercent = ((storageInfo.totalSize / estimatedLimit) * 100).toFixed(1);
-        
+
         // 显示统计信息
-        let statsHtml = '<h3>存储统计 (IndexedDB)</h3>';
-        
+        let statsHtml = '<h3>存储统计</h3>';
+
         if (parseFloat(usagePercent) > 80) {
             statsHtml += '<div class="storage-warning">⚠️ 存储空间使用率较高，建议清理数据</div>';
         } else if (parseFloat(usagePercent) < 50) {
             statsHtml += '<div class="storage-success">✅ 存储空间充足</div>';
         }
-        
+
         statsHtml += `
             <div class="stat-item">
                 <span class="stat-label">总存储大小:</span>
@@ -728,18 +728,18 @@ async function refreshStorageInfo() {
                 <span class="stat-value">${storageInfo.itemCount}</span>
             </div>
         `;
-        
+
         statsDiv.innerHTML = statsHtml;
-        
+
         // 显示详细内容
         if (storageInfo.userCount === 0) {
             contentDiv.innerHTML = '<div style="text-align:center; color:#718096; padding:40px;">暂无存储数据</div>';
             return;
         }
-        
+
         const allData = await getAllData();
         let contentHtml = '<h3>存储详情</h3>';
-        
+
         // 按用户分组数据
         const userGroups = {};
         allData.forEach(item => {
@@ -748,7 +748,7 @@ async function refreshStorageInfo() {
             }
             userGroups[item.userId].push(item);
         });
-        
+
         for (const userId of Object.keys(userGroups)) {
             const userItems = userGroups[userId];
             contentHtml += `
@@ -759,12 +759,12 @@ async function refreshStorageInfo() {
                     </div>
                     <div class="item-list">
             `;
-            
+
             for (const item of userItems) {
                 const timestamp = new Date(item.timestamp).toLocaleString('zh-CN');
                 const videoSize = (new Blob([item.video]).size / 1024 / 1024).toFixed(2);
                 const markdownSize = (new Blob([item.markdown]).size / 1024).toFixed(2);
-                
+
                 contentHtml += `
                     <div class="item-row">
                         <div class="item-info">
@@ -780,15 +780,15 @@ async function refreshStorageInfo() {
                     </div>
                 `;
             }
-            
+
             contentHtml += `
                     </div>
                 </div>
             `;
         }
-        
+
         contentDiv.innerHTML = contentHtml;
-        
+
     } catch (error) {
         console.error('刷新存储信息失败:', error);
         statsDiv.innerHTML = '<div class="storage-warning">获取存储信息失败</div>';

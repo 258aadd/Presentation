@@ -15,7 +15,7 @@
 
       <div class="storage-info">
         <div class="storage-stats">
-          <h3>存储统计 (IndexedDB)</h3>
+          <h3>存储统计</h3>
 
           <div v-if="storageInfo" class="stats-content">
             <div v-if="usagePercent > 80" class="storage-warning">
