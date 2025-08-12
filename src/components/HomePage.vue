@@ -2,7 +2,7 @@
   <div class="home-page">
     <div class="welcome-section">
       <h2 class="welcome-title">欢迎使用测试系统</h2>
-      <p class="welcome-subtitle">功能完善的文件测试与管理平台</p>
+      <p class="welcome-subtitle">上传演讲视频和Markdown文档</p>
     </div>
 
     <div class="features-grid">

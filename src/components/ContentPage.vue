@@ -145,9 +145,9 @@ const parsedSections = computed(() =>
 )
 
 const polishTextOptions = ref({
-  showModifications: false,    // 增减修改
-  showVoiceIntonation: false,  // 语音语调
-  showBodyLanguage: false      // 肢体动作
+  showModifications: false,
+  showVoiceIntonation: false,
+  showBodyLanguage: false
 })
 
 // 原文本显示控制
@@ -183,57 +183,33 @@ const filterPolishedText = (htmlContent: string) => {
   return filteredContent
 }
 
-// 移除语音语调标记的辅助函数
 const removeVoiceIntonationTags = (content: string) => {
   let result = content
-  let prevResult = ''
+  let prev = ''
 
-  // 循环处理，确保移除所有语音语调标记，包括嵌套的
-  while (result !== prevResult) {
-    prevResult = result
+  // 循环移除，兼容嵌套
+  const voicePattern = /<(?:span|b)\s+style="color:#8B4513;">（[\s\S]*?）<\/(?:span|b)>/g
 
-    // 匹配多种格式的语音语调标记
-    const patterns = [
-      // <b style="color:#8B4513;">（语音语调：...）</b>
-      /<b\s+style="color:#8B4513;">（语音语调：[^）]*）<\/b>/g,
-      // <span style="color:#8B4513;">（语音语调：...）</span>
-      /<span\s+style="color:#8B4513;">（语音语调：[^）]*）<\/span>/g,
-    ]
-
-    patterns.forEach(pattern => {
-      result = result.replace(pattern, '')
-    })
+  while (result !== prev) {
+    prev = result
+    result = result.replace(voicePattern, '')
   }
-
   return result
 }
 
-// 移除肢体动作标记的辅助函数
 const removeBodyLanguageTags = (content: string) => {
   let result = content
-  let prevResult = ''
+  let prev = ''
 
-  // 循环处理，确保移除所有肢体动作标记，包括嵌套的
-  while (result !== prevResult) {
-    prevResult = result
+  const bodyPattern = /<(?:span|b)\s+style="color:#006400;">（[\s\S]*?）<\/(?:span|b)>/g
 
-    // 匹配多种格式的肢体动作标记，支持不同颜色
-    const patterns = [
-      // <b style="color:#8B4513;">（肢体动作：...）</b>
-      /<b\s+style="color:#8B4513;">（肢体动作：[^）]*）<\/b>/g,
-      // <span style="color:#8B4513;">（肢体动作：...）</span>
-      /<span\s+style="color:#8B4513;">（肢体动作：[^）]*）<\/span>/g,
-      // <span style="color:#006400;">（肢体动作：...）</span>
-      /<span\s+style="color:#006400;">（肢体动作：[^）]*）<\/span>/g,
-    ]
-
-    patterns.forEach(pattern => {
-      result = result.replace(pattern, '')
-    })
+  while (result !== prev) {
+    prev = result
+    result = result.replace(bodyPattern, '')
   }
-
   return result
 }
+
 
 // 移除蓝色样式但保留内容的辅助函数
 const removeBlueStyling = (content: string) => {
@@ -241,14 +217,10 @@ const removeBlueStyling = (content: string) => {
   let result = content
   let prevResult = ''
 
-  // 循环处理，直到没有更多的蓝色span标签
   while (result !== prevResult) {
     prevResult = result
-    // 移除最内层的蓝色span标签，保留内容
     result = result.replace(/<span\s+style="color:blue;">([^<]*(?:<(?!\/span>)[^<]*)*)<\/span>/g, '$1')
-    // 处理只包含其他标签的蓝色span
     result = result.replace(/<span\s+style="color:blue;">(<[^>]*>[^<]*<\/[^>]*>)<\/span>/g, '$1')
-    // 处理复杂嵌套情况
     result = result.replace(/<span\s+style="color:blue;">((?:(?!<span\s+style="color:blue;">).)*?)<\/span>/gs, '$1')
   }
 
@@ -548,11 +520,13 @@ defineExpose({
 .checkbox:checked::before {
   content: '✓';
   position: absolute;
-  top: -2px;
-  left: 2px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   color: white;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: bold;
+  line-height: 1;
 }
 
 .checkbox:hover {
