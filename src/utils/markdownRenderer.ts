@@ -30,11 +30,9 @@ export function markdownToHtml(markdown: string): string {
   // ====== 无序列表 ======
   // 将连续的 - / * / + 开头的行包到一个 <ul> 里
   html = html.replace(
-    /(^|\n)(?:[ \t]*[-*+][ \t]+.+(?:\n|$))+?/gim,
+    /(^|\n)(?:[ \t]*[-*+][ \t]+.+(?:\n|$))+/gm,
     (block) => {
-      const items = block
-        .trim()
-        .split('\n')
+      const items = block.trim().split('\n')
         .map(line => line.replace(/^[ \t]*[-*+][ \t]+(.+)$/, '<li>$1</li>'))
         .join('');
       return `\n<ul>${items}</ul>\n`;
@@ -44,11 +42,9 @@ export function markdownToHtml(markdown: string): string {
   // ====== 有序列表 ======
   // 将连续的 "1. " / "2. " ... 行包到一个 <ol> 里
   html = html.replace(
-    /(^|\n)(?:[ \t]*\d+\.[ \t]+.+(?:\n|$))+?/gim,
+    /(^|\n)(?:[ \t]*\d+\.[ \t]+.+(?:\n|$))+/gm,
     (block) => {
-      const items = block
-        .trim()
-        .split('\n')
+      const items = block.trim().split('\n')
         .map(line => line.replace(/^[ \t]*\d+\.[ \t]+(.+)$/, '<li>$1</li>'))
         .join('');
       return `\n<ol>${items}</ol>\n`;

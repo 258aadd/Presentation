@@ -31,7 +31,7 @@
         <div class="text-box">
           <h3>💡 总体建议</h3>
           <div class="text-content">
-            <div v-if="parsedSections.general_suggestions" v-html="parsedSections.general_suggestions"></div>
+            <div v-if="parsedSections.general_suggestions" class="markdown-content" v-html="parsedSections.general_suggestions"></div>
             <div v-else class="no-content">暂无总体建议内容</div>
           </div>
         </div>
@@ -718,7 +718,6 @@ defineExpose({
 
 .markdown-content :deep(ol) {
   list-style-type: decimal;
-  counter-reset: list-counter;
 }
 
 .markdown-content :deep(ol li) {
