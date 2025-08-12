@@ -41,12 +41,20 @@
           <div class="polish-options">
             <div class="checkbox-group">
               <label class="checkbox-label">
-                <input type="checkbox" v-model="polishTextOptions.showModifications" class="checkbox">
-                增减修改
+                <input type="checkbox" v-model="polishTextOptions.showTextStructure" class="checkbox">
+                文本结构
               </label>
               <label class="checkbox-label">
-                <input type="checkbox" v-model="polishTextOptions.showVoiceIntonation" class="checkbox">
-                语音语调
+                <input type="checkbox" v-model="polishTextOptions.showTextPolishing" class="checkbox">
+                文本润色
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="polishTextOptions.showSpeechFlow" class="checkbox">
+                语流呈现
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="polishTextOptions.showLanguageExpression" class="checkbox">
+                语言表达
               </label>
             </div>
             <button
@@ -145,9 +153,10 @@ const parsedSections = computed(() =>
 )
 
 const polishTextOptions = ref({
-  showModifications: false,
-  showVoiceIntonation: false,
-  showBodyLanguage: false
+  showTextStructure: false,     // 文本结构
+  showTextPolishing: false,     // 文本润色
+  showSpeechFlow: false,        // 语流呈现
+  showLanguageExpression: false // 语言表达
 })
 
 // 原文本显示控制
@@ -159,23 +168,33 @@ const filterPolishedText = (htmlContent: string) => {
 
   let filteredContent = htmlContent
 
-  if (!polishTextOptions.value.showModifications &&
-      !polishTextOptions.value.showVoiceIntonation) {
+  // 如果所有选项都未选中，则移除所有标记和修改
+  if (!polishTextOptions.value.showTextStructure &&
+      !polishTextOptions.value.showTextPolishing &&
+      !polishTextOptions.value.showSpeechFlow &&
+      !polishTextOptions.value.showLanguageExpression) {
     filteredContent = filteredContent.replace(/<del>.*?<\/del>/gs, '')
-    filteredContent = removeVoiceIntonationTags(filteredContent)
-    filteredContent = removeBodyLanguageTags(filteredContent)
+    filteredContent = removeTextStructureTags(filteredContent)
+    filteredContent = removeSpeechFlowTags(filteredContent)
+    filteredContent = removeLanguageExpressionTags(filteredContent)
     filteredContent = removeBlueStyling(filteredContent)
     return filteredContent
   }
 
-
-  if (!polishTextOptions.value.showVoiceIntonation) {
-    filteredContent = removeVoiceIntonationTags(filteredContent)
+  // 根据选项移除对应的标记
+  if (!polishTextOptions.value.showTextStructure) {
+    filteredContent = removeTextStructureTags(filteredContent)
   }
 
-  filteredContent = removeBodyLanguageTags(filteredContent)
+  if (!polishTextOptions.value.showSpeechFlow) {
+    filteredContent = removeSpeechFlowTags(filteredContent)
+  }
 
-  if (!polishTextOptions.value.showModifications) {
+  if (!polishTextOptions.value.showLanguageExpression) {
+    filteredContent = removeLanguageExpressionTags(filteredContent)
+  }
+
+  if (!polishTextOptions.value.showTextPolishing) {
     filteredContent = filteredContent.replace(/<del>.*?<\/del>/gs, '')
     filteredContent = removeBlueStyling(filteredContent)
   }
@@ -183,29 +202,44 @@ const filterPolishedText = (htmlContent: string) => {
   return filteredContent
 }
 
-const removeVoiceIntonationTags = (content: string) => {
+// 移除文本结构标记（橙色 #FF4500）
+const removeTextStructureTags = (content: string) => {
   let result = content
   let prev = ''
 
-  // 循环移除，兼容嵌套
-  const voicePattern = /<(?:span|b)\s+style="color:#8B4513;">（[\s\S]*?）<\/(?:span|b)>/g
+  const structurePattern = /<(?:span|b)\s+style="color:#FF4500;">（[\s\S]*?）<\/(?:span|b)>/g
 
   while (result !== prev) {
     prev = result
-    result = result.replace(voicePattern, '')
+    result = result.replace(structurePattern, '')
   }
   return result
 }
 
-const removeBodyLanguageTags = (content: string) => {
+// 移除语流呈现标记（棕色 #8B4513）
+const removeSpeechFlowTags = (content: string) => {
   let result = content
   let prev = ''
 
-  const bodyPattern = /<(?:span|b)\s+style="color:#006400;">（[\s\S]*?）<\/(?:span|b)>/g
+  const speechPattern = /<(?:span|b)\s+style="color:#8B4513;">（[\s\S]*?）<\/(?:span|b)>/g
 
   while (result !== prev) {
     prev = result
-    result = result.replace(bodyPattern, '')
+    result = result.replace(speechPattern, '')
+  }
+  return result
+}
+
+// 移除语言表达标记（绿色 #006400）
+const removeLanguageExpressionTags = (content: string) => {
+  let result = content
+  let prev = ''
+
+  const languagePattern = /<(?:span|b)\s+style="color:#006400;">（[\s\S]*?）<\/(?:span|b)>/g
+
+  while (result !== prev) {
+    prev = result
+    result = result.replace(languagePattern, '')
   }
   return result
 }
@@ -483,22 +517,33 @@ defineExpose({
 .checkbox-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 15px;
+  gap: 10px 20px;
+  align-items: center;
+  width: 100%;
 }
 
 .checkbox-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 0.9rem;
   color: #4a5568;
   cursor: pointer;
   user-select: none;
-  transition: color 0.3s ease;
+  transition: all 0.3s ease;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  min-width: fit-content;
 }
 
 .checkbox-label:hover {
   color: #667eea;
+  background: rgba(102, 126, 234, 0.08);
+  border-color: rgba(102, 126, 234, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
 }
 
 .checkbox {
@@ -668,6 +713,17 @@ defineExpose({
 .markdown-content :deep(ol) {
   margin-left: 20px;
   margin-bottom: 1em;
+  padding-left: 0;
+}
+
+.markdown-content :deep(ol) {
+  list-style-type: decimal;
+  counter-reset: list-counter;
+}
+
+.markdown-content :deep(ol li) {
+  list-style-type: decimal;
+  display: list-item;
 }
 
 .markdown-content :deep(li) {
@@ -785,11 +841,17 @@ defineExpose({
   }
 
   .checkbox-group {
+    flex-direction: column;
+    gap: 8px;
     width: 100%;
+    align-items: stretch;
   }
 
   .checkbox-label {
     font-size: 0.85rem;
+    padding: 10px 12px;
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .show-original-btn {
