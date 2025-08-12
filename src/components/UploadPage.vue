@@ -73,12 +73,12 @@
           <div class="input-group">
             <label for="markdown-file">
               <span class="label-icon">📝</span>
-              Markdown文档
+              Markdown文档/TXT文件
             </label>
             <input
               id="markdown-file"
               type="file"
-              accept=".md,.markdown"
+              accept=".md,.markdown,.txt"
               required
               @change="handleMarkdownChange"
               class="file-input"
@@ -107,7 +107,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { database } from '../utils/database'
-import { readFileAsDataURL, readFileAsText, formatFileSize, validateVideoFile, validateMarkdownFile } from '../utils/fileUtils'
+import { readFileAsDataURL, readFileAsText, formatFileSize, validateVideoFile } from '../utils/fileUtils'
 
 const emit = defineEmits<{
   navigate: [page: string]
@@ -158,7 +158,8 @@ const handleMarkdownChange = (event: Event) => {
   const file = target.files?.[0]
 
   if (file) {
-    const error = validateMarkdownFile(file)
+    // 检查是否为支持的文件类型（markdown或txt）
+    const error = validateMarkdownOrTxtFile(file)
     if (error) {
       alert(error)
       target.value = ''
@@ -179,9 +180,25 @@ const handleMarkdownChange = (event: Event) => {
   }
 }
 
+
+const validateMarkdownOrTxtFile = (file: File): string | null => {
+  const allowedExtensions = ['.md', '.markdown', '.txt']
+  const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase()
+
+  if (!allowedExtensions.includes(fileExtension)) {
+    return '请选择Markdown文件(.md, .markdown)或文本文件(.txt)'
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return '文件大小不能超过10MB'
+  }
+
+  return null
+}
+
 const handleSubmit = async () => {
   if (!selectedVideoFile || !selectedMarkdownFile) {
-    alert('请选择视频文件和Markdown文件')
+    alert('请选择视频文件和文档文件')
     return
   }
 
@@ -203,7 +220,13 @@ const handleSubmit = async () => {
     // 读取文件
     console.log('读取文件中...')
     const videoData = await readFileAsDataURL(selectedVideoFile)
-    const markdownContent = await readFileAsText(selectedMarkdownFile)
+    let markdownContent = await readFileAsText(selectedMarkdownFile)
+
+    // 如果是txt文件，转换为markdown格式
+    if (selectedMarkdownFile.name.toLowerCase().endsWith('.txt')) {
+      console.log('检测到txt文件，转换为markdown格式...')
+      markdownContent = convertTxtToMarkdown(markdownContent)
+    }
 
     console.log('文件读取完成，开始保存...')
 
@@ -238,6 +261,10 @@ const handleSubmit = async () => {
   } finally {
     uploading.value = false
   }
+}
+
+const convertTxtToMarkdown = (txtContent: string): string => {
+  return txtContent
 }
 </script>
 
