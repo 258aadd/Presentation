@@ -31,7 +31,7 @@
         <div class="text-box">
           <h3>💡 总体建议</h3>
           <div class="text-content">
-            <div v-if="parsedSections.general_suggestions" class="markdown-content" v-html="parsedSections.general_suggestions"></div>
+            <div v-if="processedGeneralSuggestions" class="markdown-content" v-html="processedGeneralSuggestions"></div>
             <div v-else class="no-content">暂无总体建议内容</div>
           </div>
         </div>
@@ -266,6 +266,25 @@ const filteredPolishedText = computed(() =>
   filterPolishedText(parsedSections.value.polished_text || '')
 )
 
+// 简化的修复函数，现在主要依赖CSS
+const fixOrderedListNumbers = (html: string): string => {
+  if (!html) return html;
+  // 现在主要依赖全局CSS，这里只做基本处理
+  return html;
+}
+
+// 处理总体建议的显示
+const processedGeneralSuggestions = computed(() => {
+  const original = parsedSections.value.general_suggestions;
+  if (!original) return '';
+
+  console.log('原始HTML:', original);
+  const fixed = fixOrderedListNumbers(original);
+  console.log('修复后HTML:', fixed);
+
+  return fixed;
+})
+
 const loadContent = async () => {
   if (!props.userId || !props.title) {
     console.error('缺少用户ID或标题')
@@ -318,6 +337,27 @@ defineExpose({
   loadContent
 })
 </script>
+
+<style scoped>
+/* 全局CSS覆盖，确保有序列表编号显示 */
+</style>
+
+<style>
+/* 非scoped样式确保列表编号显示 */
+.markdown-content ol {
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  margin: 0 0 1em 0 !important;
+  padding: 0 0 0 30px !important;
+}
+
+.markdown-content ol li {
+  list-style-type: decimal !important;
+  display: list-item !important;
+  margin: 0 0 0.5em 0 !important;
+  padding: 0 !important;
+}
+</style>
 
 <style scoped>
 .content-page {
@@ -690,6 +730,8 @@ defineExpose({
   color: #2d3748;
 }
 
+/* 移除了重复的列表样式规则，使用非scoped版本 */
+
 .markdown-content :deep(h1),
 .markdown-content :deep(h2),
 .markdown-content :deep(h3),
@@ -709,20 +751,11 @@ defineExpose({
   margin-bottom: 1em;
 }
 
-.markdown-content :deep(ul),
-.markdown-content :deep(ol) {
-  margin-left: 20px;
+.markdown-content :deep(ul) {
+  margin-left: 0;
   margin-bottom: 1em;
-  padding-left: 0;
-}
-
-.markdown-content :deep(ol) {
-  list-style-type: decimal;
-}
-
-.markdown-content :deep(ol li) {
-  list-style-type: decimal;
-  display: list-item;
+  padding-left: 24px;
+  list-style-type: disc;
 }
 
 .markdown-content :deep(li) {
