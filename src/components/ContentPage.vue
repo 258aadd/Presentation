@@ -263,7 +263,9 @@ const removeBlueStyling = (content: string) => {
 
 // 过滤后的润色文本内容
 const filteredPolishedText = computed(() =>
-  filterPolishedText(parsedSections.value.polished_text || '')
+  explicitNumberOrderedLists(
+    filterPolishedText(parsedSections.value.polished_text || '')
+  )
 )
 
 // 简化的修复函数，现在主要依赖CSS
@@ -273,16 +275,35 @@ const fixOrderedListNumbers = (html: string): string => {
   return html;
 }
 
+// 为有序列表显式添加编号，作为样式失效时的兜底方案
+const explicitNumberOrderedLists = (html: string): string => {
+  if (!html) return html
+
+  return html.replace(/<ol\b(?:[^>]*)>[\s\S]*?<\/ol>/g, (olBlock) => {
+    // 提取所有 li
+    const liMatches = olBlock.match(/<li\b[^>]*>[\s\S]*?<\/li>/g) || []
+    if (liMatches.length === 0) return olBlock
+
+    const rebuiltItems = liMatches.map((li, index) => {
+      const inner = li
+        .replace(/^<li\b[^>]*>/i, '')
+        .replace(/<\/li>$/i, '')
+      const numberedInner = `<span style="margin-right:6px;">${index + 1}. </span>${inner}`
+      return `<li style="display:block;">${numberedInner}</li>`
+    }).join('')
+
+    // 标记为显式编号，避免被常规 ol 样式覆盖
+    return `<ol data-explicit-numbered style="list-style:none; padding-left:0;">${rebuiltItems}</ol>`
+  })
+}
+
 // 处理总体建议的显示
 const processedGeneralSuggestions = computed(() => {
-  const original = parsedSections.value.general_suggestions;
-  if (!original) return '';
+  const original = parsedSections.value.general_suggestions
+  if (!original) return ''
 
-  console.log('原始HTML:', original);
-  const fixed = fixOrderedListNumbers(original);
-  console.log('修复后HTML:', fixed);
-
-  return fixed;
+  const fixed = fixOrderedListNumbers(original)
+  return explicitNumberOrderedLists(fixed)
 })
 
 const loadContent = async () => {
@@ -343,19 +364,19 @@ defineExpose({
 </style>
 
 <style>
-/* 非scoped样式确保列表编号显示 */
-.markdown-content ol {
-  list-style-type: decimal !important;
-  list-style-position: outside !important;
-  margin: 0 0 1em 0 !important;
-  padding: 0 0 0 30px !important;
+/* 非scoped样式确保列表编号显示（对显式编号的列表放行） */
+.markdown-content ol:not([data-explicit-numbered]) {
+  list-style-type: decimal;
+  list-style-position: outside;
+  margin: 0 0 1em 0;
+  padding: 0 0 0 30px;
 }
 
-.markdown-content ol li {
-  list-style-type: decimal !important;
-  display: list-item !important;
-  margin: 0 0 0.5em 0 !important;
-  padding: 0 !important;
+.markdown-content ol:not([data-explicit-numbered]) li {
+  list-style-type: decimal;
+  display: list-item;
+  margin: 0 0 0.5em 0;
+  padding: 0;
 }
 </style>
 
