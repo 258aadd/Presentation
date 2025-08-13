@@ -216,16 +216,28 @@ const removeTextStructureTags = (content: string) => {
   return result
 }
 
-// 移除语流呈现标记（棕色 #8B4513）
+// 移除语流呈现标记（包括语速、停顿、语音变化、音量等）
 const removeSpeechFlowTags = (content: string) => {
   let result = content
   let prev = ''
 
+  // 原有的语流呈现标记（棕色 #8B4513）
   const speechPattern = /<(?:span|b)\s+style="color:#8B4513;">（[\s\S]*?）<\/(?:span|b)>/g
+
+  // 新增的语音标注类型
+  const speechSpeedPattern = /<(?:span|b)\s+style="color:#A0522D;">（语速：[\s\S]*?）<\/(?:span|b)>/g
+  const pausePattern = /<(?:span|b)\s+style="color:#CD853F;">（停顿：[\s\S]*?）<\/(?:span|b)>/g
+  const voiceChangePattern = /<(?:span|b)\s+style="color:#D2691E;">（语音变化：[\s\S]*?）<\/(?:span|b)>/g
+  const volumePattern = /<(?:span|b)\s+style="color:#8B0000;">（音量：[\s\S]*?）<\/(?:span|b)>/g
 
   while (result !== prev) {
     prev = result
+    // 移除所有语流呈现相关的标记
     result = result.replace(speechPattern, '')
+    result = result.replace(speechSpeedPattern, '')
+    result = result.replace(pausePattern, '')
+    result = result.replace(voiceChangePattern, '')
+    result = result.replace(volumePattern, '')
   }
   return result
 }
