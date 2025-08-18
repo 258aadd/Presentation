@@ -56,14 +56,26 @@
                 <input type="checkbox" v-model="polishTextOptions.showLanguageExpression" class="checkbox">
                 语言表达
               </label>
+              <label class="checkbox-label" v-if="userModifiedText">
+                <input type="checkbox" v-model="polishTextOptions.showUserEdit" class="checkbox">
+                用户编辑
+              </label>
             </div>
-            <button
-              class="show-original-btn"
-              :class="{ active: showOriginalText }"
-              @click="toggleOriginalText"
-            >
-              {{ showOriginalText ? '隐藏原文' : '显示原文' }}
-            </button>
+            <div class="button-group">
+              <button
+                class="show-original-btn"
+                :class="{ active: showOriginalText }"
+                @click="toggleOriginalText"
+              >
+                {{ showOriginalText ? '隐藏原文' : '显示原文' }}
+              </button>
+              <button
+                class="edit-text-btn"
+                @click="openEditDialog"
+              >
+                ✏️ 编辑文本
+              </button>
+            </div>
           </div>
           <div class="text-content">
             <div v-if="showOriginalText && parsedSections.original_text" class="original-text-display">
@@ -71,7 +83,7 @@
               <div v-html="parsedSections.original_text"></div>
               <div class="divider"></div>
             </div>
-            <div v-if="filteredPolishedText" v-html="filteredPolishedText"></div>
+                        <div v-if="filteredPolishedText" v-html="filteredPolishedText"></div>
             <div v-else class="no-content">暂无润色文本内容</div>
           </div>
         </div>
@@ -91,6 +103,30 @@
         </video>
         <div v-else class="no-content">
           暂无视频内容
+        </div>
+      </div>
+
+      <!-- 编辑弹窗 -->
+      <div v-if="showEditDialog" class="edit-dialog-overlay" @click="closeEditDialog">
+        <div class="edit-dialog" @click.stop>
+          <div class="edit-dialog-header">
+            <h3>编辑润色文本</h3>
+            <button class="close-btn" @click="closeEditDialog">×</button>
+          </div>
+          <div class="edit-dialog-content">
+            <div class="edit-textarea-container">
+              <textarea
+                v-model="editedText"
+                class="edit-textarea"
+                placeholder="在此编辑润色后的文本..."
+                rows="20"
+              ></textarea>
+            </div>
+          </div>
+          <div class="edit-dialog-footer">
+            <button class="btn-cancel" @click="cancelEdit">取消</button>
+            <button class="btn-save" @click="saveEdit">保存修改</button>
+          </div>
         </div>
       </div>
     </div>
@@ -156,14 +192,21 @@ const polishTextOptions = ref({
   showTextStructure: false,     // 文本结构
   showTextPolishing: false,     // 文本润色
   showSpeechFlow: false,        // 语流呈现
-  showLanguageExpression: false // 语言表达
+  showLanguageExpression: false, // 语言表达
+  showUserEdit: false          // 用户编辑
 })
 
 // 原文本显示控制
 const showOriginalText = ref(false)
 
-// 过滤润色文本内容
-const filterPolishedText = (htmlContent: string) => {
+// 编辑功能相关
+const showEditDialog = ref(false)
+const editedText = ref('')
+const userModifiedText = ref('')
+const originalCleanText = ref('') // 用户编辑时的原始纯文本
+
+// 根据当前选项过滤文本
+const applyCurrentFilter = (htmlContent: string) => {
   if (!htmlContent) return ''
 
   let filteredContent = htmlContent
@@ -185,21 +228,51 @@ const filterPolishedText = (htmlContent: string) => {
   if (!polishTextOptions.value.showTextStructure) {
     filteredContent = removeTextStructureTags(filteredContent)
   }
-
   if (!polishTextOptions.value.showSpeechFlow) {
     filteredContent = removeSpeechFlowTags(filteredContent)
   }
-
   if (!polishTextOptions.value.showLanguageExpression) {
     filteredContent = removeLanguageExpressionTags(filteredContent)
   }
-
   if (!polishTextOptions.value.showTextPolishing) {
     filteredContent = filteredContent.replace(/<del>.*?<\/del>/gs, '')
     filteredContent = removeBlueStyling(filteredContent)
   }
 
   return filteredContent
+}
+
+// 智能合并用户编辑和过滤选项
+const mergeUserEditWithFilters = (htmlContent: string): string => {
+  // 1. 先应用当前过滤选项
+  const currentFilteredHTML = applyCurrentFilter(htmlContent)
+
+  // 2. 提取当前过滤后的纯文本
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = currentFilteredHTML
+  const currentCleanText = tempDiv.textContent || tempDiv.innerText || ''
+
+  // 3. 如果当前纯文本与原始编辑基础相同，直接显示用户编辑差异
+  if (currentCleanText === originalCleanText.value) {
+    return computeTextDiff(originalCleanText.value, userModifiedText.value)
+  }
+
+  // 4. 如果不同，需要将用户编辑映射到新的过滤结果上
+  // 这里我们采用一个简化的方法：计算用户编辑相对于当前文本的差异
+  return computeTextDiff(currentCleanText, userModifiedText.value)
+}
+
+// 过滤润色文本内容
+const filterPolishedText = (htmlContent: string) => {
+  if (!htmlContent) return ''
+
+  // 如果选择了用户编辑，返回智能合并的结果
+  if (polishTextOptions.value.showUserEdit && userModifiedText.value && originalCleanText.value) {
+    return mergeUserEditWithFilters(htmlContent)
+  }
+
+  // 没有用户编辑时，按当前选项过滤
+  return applyCurrentFilter(htmlContent)
 }
 
 // 移除文本结构标记（橙色 #FF4500）
@@ -280,6 +353,8 @@ const filteredPolishedText = computed(() =>
   )
 )
 
+
+
 // 简化的修复函数，现在主要依赖CSS
 const fixOrderedListNumbers = (html: string): string => {
   if (!html) return html;
@@ -352,6 +427,160 @@ const handleVideoError = (event: Event) => {
 // 切换原文本显示状态
 const toggleOriginalText = () => {
   showOriginalText.value = !showOriginalText.value
+}
+
+// 编辑功能方法
+const openEditDialog = () => {
+  // 获取完全清理后的纯文本作为编辑基础（移除所有标记）
+  let cleanHTML = parsedSections.value.polished_text || ''
+
+  // 移除所有标记，获得纯文本
+  cleanHTML = cleanHTML.replace(/<del>.*?<\/del>/gs, '')
+  cleanHTML = removeTextStructureTags(cleanHTML)
+  cleanHTML = removeSpeechFlowTags(cleanHTML)
+  cleanHTML = removeLanguageExpressionTags(cleanHTML)
+  cleanHTML = removeBlueStyling(cleanHTML)
+
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = cleanHTML
+  const cleanText = tempDiv.textContent || tempDiv.innerText || ''
+
+  // 保存原始纯文本用于差异比较
+  originalCleanText.value = cleanText
+  editedText.value = userModifiedText.value || cleanText
+  showEditDialog.value = true
+}
+
+const closeEditDialog = () => {
+  showEditDialog.value = false
+}
+
+const cancelEdit = () => {
+  editedText.value = ''
+  closeEditDialog()
+}
+
+// 清理用户编辑状态
+const clearUserEdit = () => {
+  userModifiedText.value = ''
+  originalCleanText.value = ''
+  polishTextOptions.value.showUserEdit = false
+}
+
+const saveEdit = () => {
+  if (editedText.value.trim()) {
+    // 如果编辑后的文本与原文本相同，清理编辑状态
+    if (editedText.value === originalCleanText.value) {
+      clearUserEdit()
+    } else {
+      userModifiedText.value = editedText.value
+      // 自动勾选用户编辑选项以显示差异对比
+      polishTextOptions.value.showUserEdit = true
+    }
+    closeEditDialog()
+  }
+}
+
+// 字符级别的文本差异比较函数
+const computeTextDiff = (originalText: string, modifiedText: string): string => {
+  if (!originalText && !modifiedText) return ''
+  if (!originalText) return `<span style="color: #e53e3e; font-weight: 600;">${escapeHtml(modifiedText)}</span>`
+  if (!modifiedText) return `<del style="color: #999; text-decoration: line-through;">${escapeHtml(originalText)}</del>`
+
+  // 如果文本完全相同，直接返回
+  if (originalText === modifiedText) return escapeHtml(originalText)
+
+  const original = originalText.split('')
+  const modified = modifiedText.split('')
+
+  // 使用动态规划计算最长公共子序列
+  const lcs = computeLCS(original, modified)
+
+  // 根据LCS生成差异标记
+  return generateDiffHTML(original, modified, lcs)
+}
+
+// 计算最长公共子序列
+const computeLCS = (arr1: string[], arr2: string[]): number[][] => {
+  const m = arr1.length
+  const n = arr2.length
+  const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0))
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (arr1[i - 1] === arr2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+      }
+    }
+  }
+
+  return dp
+}
+
+// 根据LCS生成带差异标记的HTML
+const generateDiffHTML = (original: string[], modified: string[], lcs: number[][]): string => {
+  const result: string[] = []
+  let i = original.length
+  let j = modified.length
+
+  // 收集所有的操作
+  const operations: Array<{type: 'equal' | 'delete' | 'insert', text: string}> = []
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && original[i - 1] === modified[j - 1]) {
+      // 相同字符
+      operations.unshift({type: 'equal', text: original[i - 1]})
+      i--
+      j--
+    } else if (i > 0 && (j === 0 || lcs[i - 1][j] >= lcs[i][j - 1])) {
+      // 删除字符
+      operations.unshift({type: 'delete', text: original[i - 1]})
+      i--
+    } else {
+      // 插入字符
+      operations.unshift({type: 'insert', text: modified[j - 1]})
+      j--
+    }
+  }
+
+  // 将连续的相同类型操作合并
+  const mergedOps: Array<{type: 'equal' | 'delete' | 'insert', text: string}> = []
+  for (const op of operations) {
+    if (mergedOps.length > 0 && mergedOps[mergedOps.length - 1].type === op.type) {
+      mergedOps[mergedOps.length - 1].text += op.text
+    } else {
+      mergedOps.push({...op})
+    }
+  }
+
+  // 生成HTML
+  for (const op of mergedOps) {
+    switch (op.type) {
+      case 'equal':
+        result.push(escapeHtml(op.text))
+        break
+      case 'delete':
+        result.push(`<del style="color: #999; text-decoration: line-through;">${escapeHtml(op.text)}</del>`)
+        break
+      case 'insert':
+        result.push(`<span style="color: #e53e3e; font-weight: 600;">${escapeHtml(op.text)}</span>`)
+        break
+    }
+  }
+
+  return result.join('')
+}
+
+// HTML转义函数
+const escapeHtml = (text: string): string => {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 // 监听props变化，重新加载内容
@@ -652,6 +881,37 @@ defineExpose({
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+/* 用户编辑复选框特殊样式 */
+.checkbox-label:has(input[v-model="polishTextOptions.showUserEdit"]) {
+  background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+  border-color: #fc8181;
+  color: #c53030;
+  font-weight: 600;
+}
+
+.checkbox-label:has(input[v-model="polishTextOptions.showUserEdit"]:checked) {
+  background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+  color: white;
+  border-color: #e53e3e;
+}
+
+.checkbox-label:has(input[v-model="polishTextOptions.showUserEdit"]:checked) .checkbox {
+  background: white;
+  border-color: white;
+}
+
+.checkbox-label:has(input[v-model="polishTextOptions.showUserEdit"]:checked) .checkbox:checked::before {
+  color: #e53e3e;
+}
+
+/* 按钮组样式 */
+.button-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 /* 显示原文按钮样式 */
 .show-original-btn {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -667,9 +927,29 @@ defineExpose({
   white-space: nowrap;
 }
 
+/* 编辑文本按钮样式 */
+.edit-text-btn {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(240, 147, 251, 0.3);
+  white-space: nowrap;
+}
+
 .show-original-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.edit-text-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
 }
 
 .show-original-btn.active {
@@ -923,6 +1203,184 @@ defineExpose({
     align-self: flex-start;
     font-size: 0.8rem;
     padding: 5px 12px;
+  }
+
+  .edit-text-btn {
+    font-size: 0.8rem;
+    padding: 5px 12px;
+  }
+
+  .button-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+}
+
+/* 编辑弹窗样式 */
+.edit-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.edit-dialog {
+  background: white;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.edit-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 25px 30px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px 20px 0 0;
+  color: white;
+}
+
+.edit-dialog-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: white;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.edit-dialog-content {
+  flex: 1;
+  padding: 25px 30px;
+  overflow: hidden;
+}
+
+.edit-textarea-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.edit-textarea {
+  width: 100%;
+  height: 400px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 15px;
+  font-size: 1rem;
+  line-height: 1.6;
+  resize: vertical;
+  transition: all 0.3s ease;
+  font-family: inherit;
+  background: #f7fafc;
+}
+
+.edit-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: white;
+}
+
+.edit-dialog-footer {
+  padding: 20px 30px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 15px;
+  justify-content: flex-end;
+  background: #f7fafc;
+  border-radius: 0 0 20px 20px;
+}
+
+.btn-cancel,
+.btn-save {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 100px;
+}
+
+.btn-cancel {
+  background: #e2e8f0;
+  color: #4a5568;
+}
+
+.btn-cancel:hover {
+  background: #cbd5e0;
+  transform: translateY(-1px);
+}
+
+.btn-save {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+}
+
+.btn-save:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+
+
+@media (max-width: 768px) {
+  .edit-dialog {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .edit-dialog-header,
+  .edit-dialog-content,
+  .edit-dialog-footer {
+    padding: 15px 20px;
+  }
+
+  .edit-textarea {
+    height: 300px;
+  }
+
+  .btn-cancel,
+  .btn-save {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    min-width: 80px;
   }
 }
 </style>
