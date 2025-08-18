@@ -9,8 +9,8 @@ export function readFileAsDataURL(file: File): Promise<string> {
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) { // 50MB限制
-      reject(new Error('视频文件过大，请选择小于50MB的文件'));
+    if (file.size > 500 * 1024 * 1024) { // 500MB限制
+      reject(new Error('视频文件过大，请选择小于500MB的文件'));
       return;
     }
 
@@ -56,11 +56,11 @@ export function readFileAsText(file: File): Promise<string> {
 
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B';
-  
+
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -68,11 +68,11 @@ export function validateVideoFile(file: File): string | null {
   if (!file.type.startsWith('video/')) {
     return '请选择有效的视频文件';
   }
-  
-  if (file.size > 50 * 1024 * 1024) {
-    return '视频文件过大，请选择小于50MB的文件';
+
+  if (file.size > 500 * 1024 * 1024) {
+    return '视频文件过大，请选择小于500MB的文件';
   }
-  
+
   return null;
 }
 
@@ -81,10 +81,10 @@ export function validateMarkdownFile(file: File): string | null {
   if (!['md', 'markdown'].includes(extension || '')) {
     return '请选择有效的Markdown文件（.md或.markdown）';
   }
-  
+
   if (file.size > 1024 * 1024) {
     return 'Markdown文件过大，请选择小于1MB的文件';
   }
-  
+
   return null;
 }

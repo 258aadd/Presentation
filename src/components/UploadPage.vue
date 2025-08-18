@@ -51,7 +51,7 @@
           <div class="input-group">
             <label for="video-file">
               <span class="label-icon">🎬</span>
-              视频文件
+              视频文件 <span class="size-hint">(最大500MB)</span>
             </label>
             <input
               id="video-file"
@@ -73,7 +73,7 @@
           <div class="input-group">
             <label for="markdown-file">
               <span class="label-icon">📝</span>
-              Markdown文档/TXT文件
+              Markdown文档/TXT文件 <span class="size-hint">(最大10MB)</span>
             </label>
             <input
               id="markdown-file"
@@ -371,6 +371,12 @@ const convertTxtToMarkdown = (txtContent: string): string => {
 
 .label-icon {
   font-size: 1.1rem;
+}
+
+.size-hint {
+  font-size: 0.85rem;
+  color: #718096;
+  font-weight: normal;
 }
 
 .input-group input {

@@ -113,7 +113,7 @@ const loading = ref(false)
 
 const usagePercent = computed(() => {
   if (!storageInfo.value) return 0
-  const estimatedLimit = 1000 * 1024 * 1024 // 1GB估算
+  const estimatedLimit = 5000 * 1024 * 1024 // 5GB估算 (考虑到500MB视频文件限制)
   return (storageInfo.value.totalSize / estimatedLimit) * 100
 })
 
