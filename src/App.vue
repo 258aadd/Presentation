@@ -49,7 +49,7 @@ onMounted(async () => {
 <template>
   <div class="app">
     <header>
-      <h1>测试系统v1.0</h1>
+      <h1>测试系统v1.1</h1>
     </header>
 
     <main class="main-content">

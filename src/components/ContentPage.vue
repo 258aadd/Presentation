@@ -39,42 +39,41 @@
         <div class="text-box">
           <h3>✨ 润色文本</h3>
           <div class="polish-options">
-            <div class="checkbox-group">
+            <div class="options-header">
+              <span class="options-title">📋 显示选项</span>
+              <div class="button-group">
+                <button
+                  class="show-original-btn"
+                  :class="{ active: showOriginalText }"
+                  @click="toggleOriginalText"
+                >
+                  {{ showOriginalText ? '隐藏原文' : '显示原文' }}
+                </button>
+                <button
+                  class="edit-text-btn"
+                  @click="openEditDialog"
+                >
+                  编辑文本
+                </button>
+              </div>
+            </div>
+            <div class="checkbox-grid">
               <label class="checkbox-label">
                 <input type="checkbox" v-model="polishTextOptions.showTextStructure" class="checkbox">
-                文本结构
+                <span class="checkbox-text">🔧 文本结构</span>
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="polishTextOptions.showTextPolishing" class="checkbox">
-                文本润色
+                <span class="checkbox-text">✨ 文本润色</span>
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="polishTextOptions.showSpeechFlow" class="checkbox">
-                语流呈现
+                <span class="checkbox-text">🎵 语流呈现</span>
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="polishTextOptions.showLanguageExpression" class="checkbox">
-                语言表达
+                <span class="checkbox-text">💬 语言表达</span>
               </label>
-              <label class="checkbox-label" v-if="userModifiedText">
-                <input type="checkbox" v-model="polishTextOptions.showUserEdit" class="checkbox">
-                用户编辑
-              </label>
-            </div>
-            <div class="button-group">
-              <button
-                class="show-original-btn"
-                :class="{ active: showOriginalText }"
-                @click="toggleOriginalText"
-              >
-                {{ showOriginalText ? '隐藏原文' : '显示原文' }}
-              </button>
-              <button
-                class="edit-text-btn"
-                @click="openEditDialog"
-              >
-                ✏️ 编辑文本
-              </button>
             </div>
           </div>
           <div class="text-content">
@@ -192,8 +191,7 @@ const polishTextOptions = ref({
   showTextStructure: false,     // 文本结构
   showTextPolishing: false,     // 文本润色
   showSpeechFlow: false,        // 语流呈现
-  showLanguageExpression: false, // 语言表达
-  showUserEdit: false          // 用户编辑
+  showLanguageExpression: false // 语言表达
 })
 
 // 原文本显示控制
@@ -242,33 +240,57 @@ const applyCurrentFilter = (htmlContent: string) => {
   return filteredContent
 }
 
-// 智能合并用户编辑和过滤选项
-const mergeUserEditWithFilters = (htmlContent: string): string => {
-  // 1. 先应用当前过滤选项
-  const currentFilteredHTML = applyCurrentFilter(htmlContent)
+// 智能合并HTML标记和用户编辑差异
+const mergeUserEditWithHTML = (htmlContent: string): string => {
+  // 1. 先应用当前过滤选项，保留HTML标记
+  const filteredHTML = applyCurrentFilter(htmlContent)
 
-  // 2. 提取当前过滤后的纯文本
+  // 2. 提取纯文本
   const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = currentFilteredHTML
+  tempDiv.innerHTML = filteredHTML
   const currentCleanText = tempDiv.textContent || tempDiv.innerText || ''
 
-  // 3. 如果当前纯文本与原始编辑基础相同，直接显示用户编辑差异
+  // 3. 如果当前文本与编辑基础文本相同，在HTML基础上添加用户编辑差异
   if (currentCleanText === originalCleanText.value) {
-    return computeTextDiff(originalCleanText.value, userModifiedText.value)
+    return addUserEditDiffToHTML(filteredHTML, originalCleanText.value, userModifiedText.value)
   }
 
-  // 4. 如果不同，需要将用户编辑映射到新的过滤结果上
-  // 这里我们采用一个简化的方法：计算用户编辑相对于当前文本的差异
-  return computeTextDiff(currentCleanText, userModifiedText.value)
+  // 4. 如果不同，使用混合显示：显示过滤后的HTML + 用户编辑差异的分段显示
+  const userDiff = computeTextDiff(originalCleanText.value, userModifiedText.value)
+  return `${filteredHTML}<div style="margin-top: 15px; padding: 10px; border-top: 2px solid #e53e3e; background: rgba(229, 62, 62, 0.05);"><strong style="color: #e53e3e;">📝 用户编辑差异：</strong><br/>${userDiff}</div>`
+}
+
+// 在HTML中添加用户编辑差异标记
+const addUserEditDiffToHTML = (htmlContent: string, originalText: string, modifiedText: string): string => {
+  // 计算文本差异
+  const diffResult = computeTextDiff(originalText, modifiedText)
+
+  // 如果没有差异，返回原HTML
+  if (diffResult === escapeHtml(originalText)) {
+    return htmlContent
+  }
+
+  // 简单策略：如果文本完全相同，显示HTML + 差异，否则替换为差异结果
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = htmlContent
+  const htmlText = tempDiv.textContent || tempDiv.innerText || ''
+
+  if (htmlText === originalText) {
+    // 文本相同，可以安全地在HTML后添加差异
+    return `${htmlContent}<div style="margin-top: 10px; padding: 8px; border-left: 3px solid #e53e3e; background: rgba(229, 62, 62, 0.05);"><strong style="color: #e53e3e; font-size: 0.9em;">用户编辑版本：</strong><br/>${diffResult}</div>`
+  } else {
+    // 文本不同，显示分段
+    return `${htmlContent}<div style="margin-top: 15px; padding: 10px; border-top: 2px solid #e53e3e; background: rgba(229, 62, 62, 0.05);"><strong style="color: #e53e3e;">📝 用户编辑差异：</strong><br/>${diffResult}</div>`
+  }
 }
 
 // 过滤润色文本内容
 const filterPolishedText = (htmlContent: string) => {
   if (!htmlContent) return ''
 
-  // 如果选择了用户编辑，返回智能合并的结果
-  if (polishTextOptions.value.showUserEdit && userModifiedText.value && originalCleanText.value) {
-    return mergeUserEditWithFilters(htmlContent)
+  // 如果有用户编辑，默认显示编辑差异
+  if (userModifiedText.value && originalCleanText.value) {
+    return mergeUserEditWithHTML(htmlContent)
   }
 
   // 没有用户编辑时，按当前选项过滤
@@ -464,7 +486,6 @@ const cancelEdit = () => {
 const clearUserEdit = () => {
   userModifiedText.value = ''
   originalCleanText.value = ''
-  polishTextOptions.value.showUserEdit = false
 }
 
 const saveEdit = () => {
@@ -474,8 +495,6 @@ const saveEdit = () => {
       clearUserEdit()
     } else {
       userModifiedText.value = editedText.value
-      // 自动勾选用户编辑选项以显示差异对比
-      polishTextOptions.value.showUserEdit = true
     }
     closeEditDialog()
   }
@@ -654,7 +673,7 @@ defineExpose({
 
 .page-title {
   color: white;
-  font-size: 1.75rem;
+  font-size: 1.9rem;
   font-weight: 700;
   margin: 0;
   text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
@@ -673,7 +692,7 @@ defineExpose({
 
 .page-subtitle {
   color: rgba(255, 255, 255, 0.85);
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 500;
   margin: 0;
   opacity: 0.9;
@@ -738,7 +757,7 @@ defineExpose({
 .overall-evaluation-bar h3 {
   color: white;
   margin: 0 0 15px 0;
-  font-size: 1.4rem;
+  font-size: 1.55rem;
   font-weight: 700;
   text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
   border: none;
@@ -747,7 +766,7 @@ defineExpose({
 
 .evaluation-content {
   line-height: 1.7;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
 .evaluation-content div {
@@ -790,7 +809,7 @@ defineExpose({
 .text-box h3 {
   color: #4a5568;
   margin: 0 0 15px 0;
-  font-size: 1.2rem;
+  font-size: 1.35rem;
   font-weight: 600;
   border-bottom: 2px solid #667eea;
   padding-bottom: 8px;
@@ -799,7 +818,8 @@ defineExpose({
 .text-content {
   flex: 1;
   overflow-y: auto;
-  line-height: 1.6;
+  line-height: 1.7;
+  font-size: 1.05rem;
 }
 
 .text-content div {
@@ -807,21 +827,35 @@ defineExpose({
 }
 
 .polish-options {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.options-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 15px;
   margin-bottom: 15px;
-  padding: 10px 0;
+  padding-bottom: 10px;
   border-bottom: 1px solid #e2e8f0;
 }
 
-.checkbox-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 20px;
+.options-title {
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: #374151;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
   align-items: center;
-  width: 100%;
 }
 
 .checkbox-label {
@@ -829,28 +863,35 @@ defineExpose({
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
-  color: #4a5568;
+  color: #374151;
   cursor: pointer;
   user-select: none;
   transition: all 0.3s ease;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  min-width: fit-content;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+  border: 1px solid rgba(203, 213, 224, 0.6);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+}
+
+.checkbox-text {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  font-size: 0.9rem;
 }
 
 .checkbox-label:hover {
   color: #667eea;
-  background: rgba(102, 126, 234, 0.08);
-  border-color: rgba(102, 126, 234, 0.3);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.08) 100%);
+  border-color: rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
 }
 
 .checkbox {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border: 2px solid #cbd5e0;
   border-radius: 3px;
   background: white;
@@ -871,7 +912,7 @@ defineExpose({
   left: 50%;
   transform: translate(-50%, -50%);
   color: white;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: bold;
   line-height: 1;
 }
@@ -881,28 +922,7 @@ defineExpose({
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-/* 用户编辑复选框特殊样式 */
-.checkbox-label:has(input[v-model="polishTextOptions.showUserEdit"]) {
-  background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
-  border-color: #fc8181;
-  color: #c53030;
-  font-weight: 600;
-}
 
-.checkbox-label:has(input[v-model="polishTextOptions.showUserEdit"]:checked) {
-  background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
-  color: white;
-  border-color: #e53e3e;
-}
-
-.checkbox-label:has(input[v-model="polishTextOptions.showUserEdit"]:checked) .checkbox {
-  background: white;
-  border-color: white;
-}
-
-.checkbox-label:has(input[v-model="polishTextOptions.showUserEdit"]:checked) .checkbox:checked::before {
-  color: #e53e3e;
-}
 
 /* 按钮组样式 */
 .button-group {
@@ -917,14 +937,16 @@ defineExpose({
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 6px 16px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 18px;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
   white-space: nowrap;
+  min-width: 85px;
+  letter-spacing: 0.2px;
 }
 
 /* 编辑文本按钮样式 */
@@ -932,33 +954,37 @@ defineExpose({
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
   color: white;
   border: none;
-  padding: 6px 16px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 18px;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(240, 147, 251, 0.3);
   white-space: nowrap;
+  min-width: 85px;
+  letter-spacing: 0.2px;
 }
 
 .show-original-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+  filter: brightness(1.1);
 }
 
 .edit-text-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(240, 147, 251, 0.5);
+  filter: brightness(1.1);
 }
 
 .show-original-btn.active {
   background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-  box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+  box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
 }
 
 .show-original-btn.active:hover {
-  box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+  box-shadow: 0 8px 25px rgba(72, 187, 120, 0.5);
 }
 
 /* 原文本显示区域样式 */
@@ -999,7 +1025,7 @@ defineExpose({
 .video-section h3 {
   color: #4a5568;
   margin-bottom: 15px;
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   font-weight: 600;
 }
 
@@ -1175,45 +1201,54 @@ defineExpose({
   }
 
   .text-box h3 {
-    font-size: 1.1rem;
+    font-size: 1.25rem;
   }
 
   /* 移动端复选框样式调整 */
   .polish-options {
-    flex-direction: column;
-    gap: 10px;
-    align-items: flex-start;
+    padding: 12px;
   }
 
-  .checkbox-group {
+  .options-header {
     flex-direction: column;
-    gap: 8px;
-    width: 100%;
+    gap: 12px;
     align-items: stretch;
+    text-align: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+  }
+
+  .checkbox-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .checkbox-label {
     font-size: 0.85rem;
     padding: 10px 12px;
-    justify-content: flex-start;
     width: 100%;
+    justify-content: flex-start;
   }
 
   .show-original-btn {
-    align-self: flex-start;
     font-size: 0.8rem;
-    padding: 5px 12px;
+    padding: 8px 14px;
+    min-width: 80px;
+    border-radius: 16px;
   }
 
   .edit-text-btn {
     font-size: 0.8rem;
-    padding: 5px 12px;
+    padding: 8px 14px;
+    min-width: 80px;
+    border-radius: 16px;
   }
 
   .button-group {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+    gap: 10px;
+    justify-content: center;
+    flex-direction: row;
+    width: 100%;
   }
 }
 
