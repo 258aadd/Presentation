@@ -1,26 +1,28 @@
-// server.js —— 极简 REST API，文件持久化（data/db.json）
-// 仅依赖 express 与 cors： npm i express cors
+// server.js —— ESM 版本（适配 package.json 中 "type": "module"）
 // 启动： node server.js
-// 生产环境建议用 pm2 或 systemd 守护进程。
+// 依赖： npm i express cors
 
-import express, { json } from 'express';
+import express from 'express';
 import cors from 'cors';
-import { promises } from 'fs';
-const fsp = promises;
-import { join } from 'path';
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(json({ limit: '500mb' })); // base64 视频可能较大
-app.use(cors()); // 若同源部署可去掉
+app.use(express.json({ limit: '100mb' }));
+app.use(cors()); // 同域反代可关
 
-const DATA_DIR = join(__dirname, 'data');
-const DB_FILE = join(DATA_DIR, 'db.json');
+const DATA_DIR = path.join(__dirname, 'data');
+const DB_FILE = path.join(DATA_DIR, 'db.json');
 
-// 确保数据文件存在
 async function ensureDb() {
   await fsp.mkdir(DATA_DIR, { recursive: true });
   try {
-    await fsp.access(DB_FILE);
+    await fsp.access(DB_FILE, fs.constants.F_OK);
   } catch {
     await fsp.writeFile(DB_FILE, JSON.stringify({ items: [] }, null, 2), 'utf8');
   }
@@ -39,7 +41,6 @@ async function saveDb(db) {
   await fsp.writeFile(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
 }
 
-// 计算存储信息
 function computeStorageInfo(items) {
   const userInfo = {};
   let totalBytes = 0;
@@ -47,12 +48,10 @@ function computeStorageInfo(items) {
   for (const it of items) {
     userInfo[it.userId] = (userInfo[it.userId] || 0) + 1;
 
-    // video 为 data URL：`data:xxx;base64,AAAA...`，取逗号后部分计算 base64 字节数
     let videoBytes = 0;
     if (typeof it.video === 'string') {
       const idx = it.video.indexOf(',');
       const b64 = idx >= 0 ? it.video.slice(idx + 1) : it.video;
-      // base64 -> 字节数近似：每 4 个 base64 字符 = 3 字节
       videoBytes = Math.floor((b64.length * 3) / 4);
     }
     const markdownBytes = Buffer.byteLength(it.markdown || '', 'utf8');
@@ -70,11 +69,9 @@ function computeStorageInfo(items) {
   };
 }
 
-// 列出所有条目
-app.get('/api/items', async (req, res) => {
+app.get('/api/items', async (_req, res) => {
   try {
     const db = await loadDb();
-    // 按时间倒序
     db.items.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
     res.json({ items: db.items });
   } catch (e) {
@@ -82,7 +79,6 @@ app.get('/api/items', async (req, res) => {
   }
 });
 
-// 列出指定 userId 的标题
 app.get('/api/items/titles', async (req, res) => {
   try {
     const { userId } = req.query;
@@ -91,7 +87,7 @@ app.get('/api/items/titles', async (req, res) => {
     const titles = db.items
       .filter((x) => x.userId === String(userId))
       .map((x) => x.title)
-      .filter((t, i, arr) => arr.indexOf(t) === i) // 去重
+      .filter((t, i, arr) => arr.indexOf(t) === i)
       .sort((a, b) => a.localeCompare(b));
     res.json({ titles });
   } catch (e) {
@@ -99,7 +95,6 @@ app.get('/api/items/titles', async (req, res) => {
   }
 });
 
-// 读取某条内容（按 userId + title）
 app.get('/api/items/content', async (req, res) => {
   try {
     const { userId, title } = req.query;
@@ -114,7 +109,6 @@ app.get('/api/items/content', async (req, res) => {
   }
 });
 
-// 保存/更新
 app.post('/api/items', async (req, res) => {
   try {
     const item = req.body || {};
@@ -136,7 +130,6 @@ app.post('/api/items', async (req, res) => {
   }
 });
 
-// 删除某条
 app.delete('/api/items', async (req, res) => {
   try {
     const { userId, title } = req.query;
@@ -153,8 +146,7 @@ app.delete('/api/items', async (req, res) => {
   }
 });
 
-// 清空所有
-app.delete('/api/items/all', async (req, res) => {
+app.delete('/api/items/all', async (_req, res) => {
   try {
     const db = await loadDb();
     db.items = [];
@@ -165,8 +157,7 @@ app.delete('/api/items/all', async (req, res) => {
   }
 });
 
-// 存储统计
-app.get('/api/storage-info', async (req, res) => {
+app.get('/api/storage-info', async (_req, res) => {
   try {
     const db = await loadDb();
     res.json(computeStorageInfo(db.items));
