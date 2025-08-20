@@ -1,11 +1,14 @@
-// IndexedDB 数据库管理工具
+// database.ts —— 改为服务端存储实现（保留与原版相同的接口）
+// 说明：所有方法通过 fetch 调用后端 /api，返回结构与原先一致。
+// 如需修改后端地址，改 BASE_URL 即可（默认同域 /api）。
+
 export interface FileData {
-  id: string;
+  id: string;         // 建议为 `${userId}:${title}`
   userId: string;
   title: string;
-  video: string; // base64 data URL
+  video: string;      // base64 data URL
   markdown: string;
-  timestamp: string;
+  timestamp: string;  // ISO 字符串
 }
 
 export interface StorageInfo {
@@ -13,241 +16,164 @@ export interface StorageInfo {
   totalSizeMB: string;
   itemCount: number;
   userCount: number;
-  userInfo: Record<string, number>;
+  userInfo: Record<string, number>; // userId -> 项目数
 }
 
-class DatabaseManager {
-  private db: IDBDatabase | null = null;
-  private readonly DB_NAME = 'FileManagerDB';
-  private readonly DB_VERSION = 1;
-  private readonly STORE_NAME = 'files';
+class RemoteDatabaseManager {
+  private BASE_URL = '/api';
 
-  async init(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-
-      request.onerror = () => {
-        console.error('IndexedDB 打开失败:', request.error);
-        reject(request.error);
-      };
-
-      request.onsuccess = () => {
-        this.db = request.result;
-        console.log('IndexedDB 连接成功');
-        resolve();
-      };
-
-      request.onupgradeneeded = (event) => {
-        this.db = (event.target as IDBOpenDBRequest).result;
-        console.log('IndexedDB 升级中...');
-
-        if (!this.db.objectStoreNames.contains(this.STORE_NAME)) {
-          const store = this.db.createObjectStore(this.STORE_NAME, { keyPath: 'id' });
-          store.createIndex('userId', 'userId', { unique: false });
-          store.createIndex('title', 'title', { unique: false });
-          store.createIndex('timestamp', 'timestamp', { unique: false });
-          console.log('对象存储创建成功');
-        }
-      };
-    });
+  // 与原 IndexedDB 版本保持签名一致（这里为 no-op）
+  async init(): Promise<boolean> {
+    return true;
   }
 
-  async saveData(userId: string, title: string, videoData: string, markdownContent: string): Promise<boolean> {
-    try {
-      if (!this.db) throw new Error('数据库未初始化');
+  // 保存/更新一条数据
+// 同时兼容：
+// 1) saveData({ userId, title, video, markdown, ... })
+// 2) saveData(userId, title, video, markdown)
+async saveData(data: FileData): Promise<boolean>;
+async saveData(
+  userId: string,
+  title: string,
+  video: string,
+  markdown: string
+): Promise<boolean>;
+async saveData(
+  a: FileData | string,
+  b?: string,
+  c?: string,
+  d?: string
+): Promise<boolean> {
+  try {
+    let payload: FileData;
 
-      const id = `${userId}:${title}`;
-      const dataObject: FileData = {
-        id,
+    if (typeof a === 'string') {
+      // 走旧的 4 参调用
+      const userId = a;
+      const title = b ?? '';
+      const video = c ?? '';
+      const markdown = d ?? '';
+      payload = {
+        id: `${userId}:${title}`,
         userId,
         title,
-        video: videoData,
-        markdown: markdownContent,
-        timestamp: new Date().toISOString()
+        video,
+        markdown,
+        timestamp: new Date().toISOString(),
       };
-
-      const transaction = this.db.transaction([this.STORE_NAME], 'readwrite');
-      const store = transaction.objectStore(this.STORE_NAME);
-
-      return new Promise((resolve, reject) => {
-        const request = store.put(dataObject);
-
-        request.onsuccess = () => {
-          console.log('数据保存成功');
-          resolve(true);
-        };
-
-        request.onerror = () => {
-          console.error('数据保存失败:', request.error);
-          reject(request.error);
-        };
-      });
-    } catch (error) {
-      console.error('保存数据失败:', error);
-      return false;
+    } else {
+      // 走新的对象调用
+      payload = { ...a };
+      payload.id = payload.id || `${payload.userId}:${payload.title}`;
+      payload.timestamp = payload.timestamp || new Date().toISOString();
     }
-  }
 
+    const res = await fetch(`${this.BASE_URL}/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return true;
+  } catch (e) {
+    console.error('保存数据失败:', e);
+    return false;
+  }
+}
+
+
+  // 获取指定 userId 的所有标题（用于下拉/提示）
   async getUserTitles(userId: string): Promise<string[]> {
     try {
-      if (!this.db) throw new Error('数据库未初始化');
-
-      const transaction = this.db.transaction([this.STORE_NAME], 'readonly');
-      const store = transaction.objectStore(this.STORE_NAME);
-      const index = store.index('userId');
-
-      return new Promise((resolve, reject) => {
-        const request = index.getAll(userId);
-
-        request.onsuccess = () => {
-          const results = request.result;
-          const titles = results.map((item: FileData) => item.title);
-          resolve(titles);
-        };
-
-        request.onerror = () => {
-          console.error('获取用户标题失败:', request.error);
-          reject(request.error);
-        };
-      });
-    } catch (error) {
-      console.error('获取用户标题失败:', error);
+      const res = await fetch(
+        `${this.BASE_URL}/items/titles?` + new URLSearchParams({ userId })
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const data = (await res.json()) as { titles: string[] };
+      return data.titles || [];
+    } catch (e) {
+      console.error('获取标题列表失败:', e);
       return [];
     }
   }
 
+  // 获取指定 userId + title 的完整内容
   async getUserContent(userId: string, title: string): Promise<FileData | null> {
     try {
-      if (!this.db) throw new Error('数据库未初始化');
-
-      const transaction = this.db.transaction([this.STORE_NAME], 'readonly');
-      const store = transaction.objectStore(this.STORE_NAME);
-      const id = `${userId}:${title}`;
-
-      return new Promise((resolve, reject) => {
-        const request = store.get(id);
-
-        request.onsuccess = () => {
-          resolve(request.result || null);
-        };
-
-        request.onerror = () => {
-          console.error('获取用户内容失败:', request.error);
-          reject(request.error);
-        };
-      });
-    } catch (error) {
-      console.error('获取用户内容失败:', error);
+      const res = await fetch(
+        `${this.BASE_URL}/items/content?` +
+          new URLSearchParams({ userId, title })
+      );
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(await res.text());
+      const data = (await res.json()) as FileData;
+      return data;
+    } catch (e) {
+      console.error('获取内容失败:', e);
       return null;
     }
   }
 
+  // 获取所有数据（用于“存储信息/总览”页）
   async getAllData(): Promise<FileData[]> {
     try {
-      if (!this.db) throw new Error('数据库未初始化');
-
-      const transaction = this.db.transaction([this.STORE_NAME], 'readonly');
-      const store = transaction.objectStore(this.STORE_NAME);
-
-      return new Promise((resolve, reject) => {
-        const request = store.getAll();
-
-        request.onsuccess = () => {
-          resolve(request.result);
-        };
-
-        request.onerror = () => {
-          console.error('获取所有数据失败:', request.error);
-          reject(request.error);
-        };
-      });
-    } catch (error) {
-      console.error('获取所有数据失败:', error);
+      const res = await fetch(`${this.BASE_URL}/items`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = (await res.json()) as { items: FileData[] };
+      return data.items || [];
+    } catch (e) {
+      console.error('获取所有数据失败:', e);
       return [];
     }
   }
 
-  async getStorageInfo(): Promise<StorageInfo | null> {
+  // 获取存储统计信息
+  async getStorageInfo(): Promise<StorageInfo> {
     try {
-      const results = await this.getAllData();
-      let totalSize = 0;
-      const userInfo: Record<string, number> = {};
-
-      results.forEach(item => {
-        const itemSize = new Blob([JSON.stringify(item)]).size;
-        totalSize += itemSize;
-
-        if (!userInfo[item.userId]) {
-          userInfo[item.userId] = 0;
-        }
-        userInfo[item.userId]++;
-      });
-
+      const res = await fetch(`${this.BASE_URL}/storage-info`);
+      if (!res.ok) throw new Error(await res.text());
+      const info = (await res.json()) as StorageInfo;
+      return info;
+    } catch (e) {
+      console.error('获取存储信息失败:', e);
       return {
-        totalSize,
-        totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
-        itemCount: results.length,
-        userCount: Object.keys(userInfo).length,
-        userInfo
+        totalSize: 0,
+        totalSizeMB: '0.00 MB',
+        itemCount: 0,
+        userCount: 0,
+        userInfo: {},
       };
-    } catch (error) {
-      console.error('获取存储信息失败:', error);
-      return null;
     }
   }
 
+  // 删除某一条（按 userId + title）
   async deleteUserContent(userId: string, title: string): Promise<boolean> {
     try {
-      if (!this.db) throw new Error('数据库未初始化');
-
-      const transaction = this.db.transaction([this.STORE_NAME], 'readwrite');
-      const store = transaction.objectStore(this.STORE_NAME);
-      const id = `${userId}:${title}`;
-
-      return new Promise((resolve, reject) => {
-        const request = store.delete(id);
-
-        request.onsuccess = () => {
-          console.log(`已删除: ${userId}/${title}`);
-          resolve(true);
-        };
-
-        request.onerror = () => {
-          console.error('删除数据失败:', request.error);
-          reject(request.error);
-        };
-      });
-    } catch (error) {
-      console.error('删除数据失败:', error);
+      const url =
+        `${this.BASE_URL}/items?` +
+        new URLSearchParams({ userId, title }).toString();
+      const res = await fetch(url, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
+      return true;
+    } catch (e) {
+      console.error('删除失败:', e);
       return false;
     }
   }
 
+  // 清空所有数据（危险操作）
   async clearAllData(): Promise<boolean> {
     try {
-      if (!this.db) throw new Error('数据库未初始化');
-
-      const transaction = this.db.transaction([this.STORE_NAME], 'readwrite');
-      const store = transaction.objectStore(this.STORE_NAME);
-
-      return new Promise((resolve, reject) => {
-        const request = store.clear();
-
-        request.onsuccess = () => {
-          console.log('所有数据已清空');
-          resolve(true);
-        };
-
-        request.onerror = () => {
-          console.error('清空数据失败:', request.error);
-          reject(request.error);
-        };
+      const res = await fetch(`${this.BASE_URL}/items/all`, {
+        method: 'DELETE',
       });
-    } catch (error) {
-      console.error('清空数据失败:', error);
+      if (!res.ok) throw new Error(await res.text());
+      return true;
+    } catch (e) {
+      console.error('清空数据失败:', e);
       return false;
     }
   }
 }
 
-export const database = new DatabaseManager();
+export const database = new RemoteDatabaseManager();
