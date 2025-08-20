@@ -3,7 +3,7 @@
     <div class="page-header">
       <div class="header-content">
         <h2 class="page-title">📁 浏览文件</h2>
-        <p class="page-subtitle">查看测试系统v1.1中已上传的文件内容</p>
+        <p class="page-subtitle">查看测试系统v2.0中已上传的文件内容</p>
       </div>
       <button class="btn btn-back" @click="$emit('navigate', 'home')">
         <span class="back-icon">←</span>
