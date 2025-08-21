@@ -9,6 +9,9 @@ export interface FileData {
   video: string;      // base64 data URL
   markdown: string;
   timestamp: string;  // ISO 字符串
+
+  videoBytes?: number;
+  markdownBytes?: number;
 }
 
 export interface StorageInfo {
@@ -115,17 +118,33 @@ async saveData(
   }
 
   // 获取所有数据（用于“存储信息/总览”页）
-  async getAllData(): Promise<FileData[]> {
-    try {
-      const res = await fetch(`${this.BASE_URL}/items`);
-      if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as { items: FileData[] };
-      return data.items || [];
-    } catch (e) {
-      console.error('获取所有数据失败:', e);
-      return [];
-    }
+// database.ts 中：
+async getAllData(): Promise<FileData[]> {
+  try {
+    // 关键：请求精简列表，不含大字段
+    const res = await fetch(`${this.BASE_URL}/items?lean=1`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json(); // { items: [{id,userId,title,timestamp,videoBytes,markdownBytes}, ...] }
+
+    // 为了不破坏旧 UI 的类型预期，补齐空字段（不再一次性传大 base64）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data.items || []).map((x: any) => ({
+      id: x.id,
+      userId: x.userId,
+      title: x.title,
+      timestamp: x.timestamp,
+      video: '',       // 懒加载：真正需要内容时再调用 getUserContent()
+      markdown: '',
+      // 可选：把大小也带上（你的 UI 用得上就取，不用也没影响）
+      videoBytes: x.videoBytes,
+      markdownBytes: x.markdownBytes,
+    }));
+  } catch (e) {
+    console.error('获取所有数据失败:', e);
+    return [];
   }
+}
+
 
   // 获取存储统计信息
   async getStorageInfo(): Promise<StorageInfo> {
