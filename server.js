@@ -36,9 +36,7 @@ async function saveDb(db) {
   await fsp.writeFile(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
 }
 
-// 计算大小与 etag（在保存时做，避免每次 GET 都算）
 function computeSizesAndEtag(item) {
-  // 估算 base64 大小：每 4 字符 ≈ 3 字节
   let videoBytes = 0;
   if (typeof item.video === 'string') {
     const idx = item.video.indexOf(',');
@@ -50,7 +48,6 @@ function computeSizesAndEtag(item) {
   const h = crypto.createHash('sha1');
   h.update(item.id || '');
   h.update(item.timestamp || '');
-  // 注意：只用大小和时间戳就够了；真正的内容变更也会改时间戳
   h.update(String(videoBytes));
   h.update(String(markdownBytes));
   const etag = `"${h.digest('base64')}"`;
@@ -59,6 +56,7 @@ function computeSizesAndEtag(item) {
   item.markdownBytes = markdownBytes;
   item.etag = etag;
 }
+
 
 function computeStorageInfo(items) {
   const userInfo = {};
@@ -76,27 +74,33 @@ function computeStorageInfo(items) {
   };
 }
 
-// 列表：支持 ?lean=1 只返回元信息（极大提速）
 app.get('/api/items', async (req, res) => {
   try {
     const db = await loadDb();
     db.items.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
 
-    if (req.query.lean === '1') {
+    // 默认瘦身；只有 ?full=1 才返回全量
+    const full = req.query.full === '1';
+
+    if (!full) {
       const list = db.items.map(({ id, userId, title, timestamp, videoBytes = 0, markdownBytes = 0 }) => ({
-        id, userId, title, timestamp, videoBytes, markdownBytes
+        id, userId, title, timestamp,
+        video: '',             // 兼容旧 UI 的字段形状
+        markdown: '',
+        videoBytes, markdownBytes,
       }));
-      // 列表可短缓存
       res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=30');
       return res.json({ items: list });
     }
 
-    // 旧行为（不建议在页面初始加载时用）
+    // 只有明确要求 full 时才给全量（谨慎使用）
     return res.json({ items: db.items });
   } catch (e) {
     res.status(500).send(String(e));
   }
 });
+
+
 
 // 标题列表
 app.get('/api/items/titles', async (req, res) => {
