@@ -857,6 +857,7 @@ defineExpose({
   flex: 1; /* 让总体建议框填满剩余空间 */
   display: flex;
   flex-direction: column;
+  min-height: unset; /* 移除最小高度限制，允许自由拉伸 */
 }
 
 /* 右侧列 - 润色文本 */
@@ -872,6 +873,8 @@ defineExpose({
   flex: 1; /* 让润色文本框填满剩余空间 */
   display: flex;
   flex-direction: column;
+  height: 100%; /* 强制填满整个右侧列高度 */
+  min-height: unset; /* 移除最小高度限制 */
 }
 
 /* 文本框样式 */
@@ -1156,6 +1159,7 @@ defineExpose({
   border: 1px solid #e2e8f0;
   box-shadow: 0 4px 20px rgba(0,0,0,0.06);
   transition: all 0.3s ease;
+  flex-shrink: 0; /* 防止视频部分被压缩 */
 }
 
 .video-section:hover {
@@ -1384,6 +1388,8 @@ defineExpose({
   .left-column .text-box,
   .right-column .text-box {
     flex: none;
+    height: auto; /* 移动端恢复自动高度 */
+    min-height: 150px; /* 移动端设置合理的最小高度 */
   }
 
   .overall-evaluation-bar {
