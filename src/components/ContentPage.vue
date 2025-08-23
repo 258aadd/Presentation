@@ -417,19 +417,45 @@ const explicitNumberOrderedLists = (html: string): string => {
 const addSectionSeparators = (htmlContent: string): string => {
   if (!htmlContent) return ''
 
-  // 为一级标题（h1, h2, h3）添加分隔线，但跳过第一个标题
-  let processed = htmlContent
-  let isFirstHeading = true
+  // 先检查是否已经有HTML标题标签
+  const hasHtmlHeadings = /<h[1-6]/i.test(htmlContent)
 
-  // 匹配 h1, h2, h3 标签
-  processed = processed.replace(/<(h[1-3])\b[^>]*>/gi, (match) => {
-    if (isFirstHeading) {
-      isFirstHeading = false
-      return match // 第一个标题不添加分隔线
+  if (hasHtmlHeadings) {
+    // 如果有HTML标题，直接在标题间添加分隔线
+    let headingCount = 0
+    return htmlContent.replace(/<h([1-3])([^>]*)>/gi, (match) => {
+      headingCount++
+      if (headingCount === 1) {
+        return match
+      }
+      return `<div class="section-separator"></div>${match}`
+    })
+  }
+
+  // 如果没有HTML标题，查找可能的文本标题模式
+  // 匹配独立段落中的中文标题，且后面跟随列表的情况
+  let titleCount = 0
+  let processed = htmlContent
+
+  // 模式1: 匹配独立段落中的标题（如 <p>内容结构优化</p>）
+  processed = processed.replace(/<p>\s*([\u4e00-\u9fa5]{2,8})\s*<\/p>(?=\s*<ul)/g, (match, title) => {
+    titleCount++
+    if (titleCount === 1) {
+      return `<h3>${title.trim()}</h3>`
     }
-    // 在后续标题前添加分隔线
-    return `<div class="section-separator"></div>${match}`
+    return `<div class="section-separator"></div><h3>${title.trim()}</h3>`
   })
+
+  // 模式2: 如果没有匹配到模式1，尝试匹配强调的标题
+  if (titleCount === 0) {
+    processed = processed.replace(/<p>\s*<strong>([\u4e00-\u9fa5]{2,8})<\/strong>\s*<\/p>/g, (match, title) => {
+      titleCount++
+      if (titleCount === 1) {
+        return `<h3>${title.trim()}</h3>`
+      }
+      return `<div class="section-separator"></div><h3>${title.trim()}</h3>`
+    })
+  }
 
   return processed
 }
