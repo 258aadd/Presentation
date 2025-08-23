@@ -26,82 +26,89 @@
         </div>
       </div>
 
-      <!-- 主要内容区域 -->
-      <div class="main-content-grid">
-        <div class="text-box">
-          <h3>💡 总体建议</h3>
-          <div class="text-content">
-            <div v-if="processedGeneralSuggestions" class="markdown-content" v-html="processedGeneralSuggestions"></div>
-            <div v-else class="no-content">暂无总体建议内容</div>
+      <!-- 主要内容区域 - 新的左右布局 -->
+      <div class="main-content-layout">
+        <!-- 左侧：视频和总体建议 -->
+        <div class="left-column">
+          <!-- 视频部分 -->
+          <div class="video-section">
+            <h3>🎬 视频内容</h3>
+            <video
+              v-if="videoSrc"
+              :src="videoSrc"
+              controls
+              width="100%"
+              @error="handleVideoError"
+            >
+              您的浏览器不支持视频播放。
+            </video>
+            <div v-else class="no-content">
+              暂无视频内容
+            </div>
+          </div>
+
+          <!-- 总体建议 -->
+          <div class="text-box">
+            <h3>💡 总体建议</h3>
+            <div class="text-content">
+              <div v-if="processedGeneralSuggestions" class="markdown-content" v-html="processedGeneralSuggestions"></div>
+              <div v-else class="no-content">暂无总体建议内容</div>
+            </div>
           </div>
         </div>
 
-        <div class="text-box">
-          <h3>✨ 润色文本</h3>
-          <div class="polish-options">
-            <div class="options-header">
-              <span class="options-title">📋 显示选项</span>
-              <div class="button-group">
-                <button
-                  class="show-original-btn"
-                  :class="{ active: showOriginalText }"
-                  @click="toggleOriginalText"
-                >
-                  {{ showOriginalText ? '隐藏原文' : '显示原文' }}
-                </button>
-                <button
-                  class="edit-text-btn"
-                  @click="openEditDialog"
-                >
-                  编辑文本
-                </button>
+        <!-- 右侧：润色文本 -->
+        <div class="right-column">
+          <div class="text-box">
+            <h3>✨ 润色文本</h3>
+            <div class="polish-options">
+              <div class="options-header">
+                <span class="options-title">📋 显示选项</span>
+                <div class="button-group">
+                  <button
+                    class="show-original-btn"
+                    :class="{ active: showOriginalText }"
+                    @click="toggleOriginalText"
+                  >
+                    {{ showOriginalText ? '隐藏原文' : '显示原文' }}
+                  </button>
+                  <button
+                    class="edit-text-btn"
+                    @click="openEditDialog"
+                  >
+                    编辑文本
+                  </button>
+                </div>
+              </div>
+              <div class="checkbox-grid">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="polishTextOptions.showTextStructure" class="checkbox">
+                  <span class="checkbox-text">🔧 文本结构</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="polishTextOptions.showTextPolishing" class="checkbox">
+                  <span class="checkbox-text">✨ 文本润色</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="polishTextOptions.showSpeechFlow" class="checkbox">
+                  <span class="checkbox-text">🎵 语流呈现</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="polishTextOptions.showLanguageExpression" class="checkbox">
+                  <span class="checkbox-text">💬 语言表达</span>
+                </label>
               </div>
             </div>
-            <div class="checkbox-grid">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="polishTextOptions.showTextStructure" class="checkbox">
-                <span class="checkbox-text">🔧 文本结构</span>
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="polishTextOptions.showTextPolishing" class="checkbox">
-                <span class="checkbox-text">✨ 文本润色</span>
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="polishTextOptions.showSpeechFlow" class="checkbox">
-                <span class="checkbox-text">🎵 语流呈现</span>
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="polishTextOptions.showLanguageExpression" class="checkbox">
-                <span class="checkbox-text">💬 语言表达</span>
-              </label>
+            <div class="text-content">
+              <div v-if="showOriginalText && parsedSections.original_text" class="original-text-display">
+                <h4>📄 原文本</h4>
+                <div v-html="parsedSections.original_text"></div>
+                <div class="divider"></div>
+              </div>
+                            <div v-if="filteredPolishedText" v-html="filteredPolishedText"></div>
+              <div v-else class="no-content">暂无润色文本内容</div>
             </div>
           </div>
-          <div class="text-content">
-            <div v-if="showOriginalText && parsedSections.original_text" class="original-text-display">
-              <h4>📄 原文本</h4>
-              <div v-html="parsedSections.original_text"></div>
-              <div class="divider"></div>
-            </div>
-                        <div v-if="filteredPolishedText" v-html="filteredPolishedText"></div>
-            <div v-else class="no-content">暂无润色文本内容</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 视频在底部 -->
-      <div class="video-section">
-        <h3>视频内容</h3>
-        <video
-          v-if="videoSrc"
-          :src="videoSrc"
-          controls
-          width="100%"
-          @error="handleVideoError"
-        >
-          您的浏览器不支持视频播放。
-        </video>
-        <div v-else class="no-content">
-          暂无视频内容
         </div>
       </div>
 
@@ -780,12 +787,25 @@ defineExpose({
   font-style: italic;
 }
 
-/* 主要内容区域 - 1x2 网格布局 */
-.main-content-grid {
+/* 主要内容区域 - 左右两列布局 */
+.main-content-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 25px;
   margin-bottom: 40px;
+}
+
+/* 左侧列 - 视频和总体建议 */
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 右侧列 - 润色文本 */
+.right-column {
+  display: flex;
+  flex-direction: column;
 }
 
 /* 文本框样式 */
@@ -1017,16 +1037,25 @@ defineExpose({
 /* 视频部分样式 */
 .video-section {
   background: #f7fafc;
-  padding: 20px;
-  border-radius: 12px;
+  padding: 25px;
+  border-radius: 16px;
   border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+  transition: all 0.3s ease;
+}
+
+.video-section:hover {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
 }
 
 .video-section h3 {
   color: #4a5568;
-  margin-bottom: 15px;
-  font-size: 1.4rem;
+  margin: 0 0 15px 0;
+  font-size: 1.35rem;
   font-weight: 600;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 8px;
 }
 
 .video-section video {
@@ -1034,6 +1063,7 @@ defineExpose({
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   max-width: 100%;
   height: auto;
+  background: #000;
 }
 
 .no-content {
@@ -1176,10 +1206,15 @@ defineExpose({
   }
 
   /* 移动端单列布局 */
-  .main-content-grid {
+  .main-content-layout {
     grid-template-columns: 1fr;
     gap: 15px;
     margin-bottom: 30px;
+  }
+
+  .left-column,
+  .right-column {
+    gap: 15px;
   }
 
   .overall-evaluation-bar {
