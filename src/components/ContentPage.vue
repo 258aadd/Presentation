@@ -841,7 +841,7 @@ defineExpose({
   grid-template-columns: 1fr 1fr;
   gap: 25px;
   margin-bottom: 40px;
-  align-items: stretch; /* 让两列高度一致 */
+  align-items: stretch; /* 使用stretch确保两列高度一致 */
 }
 
 /* 左侧列 - 视频和总体建议 */
@@ -849,32 +849,32 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 20px;
-  height: 100%; /* 确保填满容器高度 */
+  height: 100%; /* 填满grid容器高度 */
 }
 
 /* 左侧列中的总体建议框 */
 .left-column .text-box {
-  flex: 1; /* 让总体建议框填满剩余空间 */
+  flex: 1; /* 填充除视频外的剩余空间 */
   display: flex;
   flex-direction: column;
-  min-height: unset; /* 移除最小高度限制，允许自由拉伸 */
+  min-height: 220px; /* 设置最小高度 */
 }
 
 /* 右侧列 - 润色文本 */
 .right-column {
   display: flex;
   flex-direction: column;
-  align-items: stretch; /* 确保内容拉伸填满容器 */
-  height: 100%; /* 确保填满容器高度 */
+  height: 100%; /* 填满grid容器高度 */
 }
 
 /* 确保右侧润色文本框与左侧总体建议框底部对齐 */
 .right-column .text-box {
-  flex: 1; /* 让润色文本框填满剩余空间 */
+  flex: 1; /* 填充整个右侧列高度 */
   display: flex;
   flex-direction: column;
-  height: 100%; /* 强制填满整个右侧列高度 */
-  min-height: unset; /* 移除最小高度限制 */
+  min-height: 220px; /* 设置最小高度与左侧一致 */
+  /* 通过计算确保高度与左侧总体建议框匹配 */
+  height: calc(100% - 0px); /* 右侧没有额外元素，直接填满 */
 }
 
 /* 文本框样式 */
