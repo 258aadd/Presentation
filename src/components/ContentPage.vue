@@ -100,13 +100,13 @@
               </div>
             </div>
             <div class="text-content">
+              <div v-if="filteredPolishedText" v-html="filteredPolishedText"></div>
+              <div v-else class="no-content">暂无润色文本内容</div>
               <div v-if="showOriginalText && parsedSections.original_text" class="original-text-display">
                 <h4>📄 原文本</h4>
                 <div v-html="parsedSections.original_text"></div>
                 <div class="divider"></div>
               </div>
-                            <div v-if="filteredPolishedText" v-html="filteredPolishedText"></div>
-              <div v-else class="no-content">暂无润色文本内容</div>
             </div>
           </div>
         </div>
