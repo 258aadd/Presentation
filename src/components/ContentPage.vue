@@ -413,13 +413,35 @@ const explicitNumberOrderedLists = (html: string): string => {
   })
 }
 
+// 为总体建议添加分隔线的函数
+const addSectionSeparators = (htmlContent: string): string => {
+  if (!htmlContent) return ''
+
+  // 为一级标题（h1, h2, h3）添加分隔线，但跳过第一个标题
+  let processed = htmlContent
+  let isFirstHeading = true
+
+  // 匹配 h1, h2, h3 标签
+  processed = processed.replace(/<(h[1-3])\b[^>]*>/gi, (match) => {
+    if (isFirstHeading) {
+      isFirstHeading = false
+      return match // 第一个标题不添加分隔线
+    }
+    // 在后续标题前添加分隔线
+    return `<div class="section-separator"></div>${match}`
+  })
+
+  return processed
+}
+
 // 处理总体建议的显示
 const processedGeneralSuggestions = computed(() => {
   const original = parsedSections.value.general_suggestions
   if (!original) return ''
 
   const fixed = fixOrderedListNumbers(original)
-  return explicitNumberOrderedLists(fixed)
+  const withLists = explicitNumberOrderedLists(fixed)
+  return addSectionSeparators(withLists)
 })
 
 const loadContent = async () => {
@@ -1099,6 +1121,34 @@ defineExpose({
   color: #2d3748;
 }
 
+/* 总体建议中的分隔线样式 */
+.section-separator {
+  margin: 24px 0;
+  position: relative;
+  text-align: center;
+}
+
+.section-separator::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #667eea 20%, #764ba2 50%, #667eea 80%, transparent 100%);
+  transform: translateY(-50%);
+}
+
+.section-separator::after {
+  content: '✦';
+  background: #f7fafc;
+  color: #667eea;
+  padding: 0 12px;
+  font-size: 12px;
+  position: relative;
+  z-index: 1;
+}
+
 /* 移除了重复的列表样式规则，使用非scoped版本 */
 
 .markdown-content :deep(h1),
@@ -1110,6 +1160,25 @@ defineExpose({
   margin-top: 1.5em;
   margin-bottom: 0.5em;
   color: #4a5568;
+}
+
+/* 总体建议中的标题特别样式 */
+.text-box .markdown-content :deep(h1),
+.text-box .markdown-content :deep(h2),
+.text-box .markdown-content :deep(h3) {
+  color: #667eea;
+  font-weight: 700;
+  margin-top: 0.8em;
+  margin-bottom: 1em;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+  position: relative;
+}
+
+.text-box .markdown-content :deep(h1):first-child,
+.text-box .markdown-content :deep(h2):first-child,
+.text-box .markdown-content :deep(h3):first-child {
+  margin-top: 0;
 }
 
 .markdown-content :deep(h1) { font-size: 2em; }
@@ -1284,6 +1353,26 @@ defineExpose({
     justify-content: center;
     flex-direction: row;
     width: 100%;
+  }
+
+  /* 移动端分隔线样式调整 */
+  .section-separator {
+    margin: 16px 0;
+  }
+
+  .section-separator::after {
+    font-size: 10px;
+    padding: 0 8px;
+  }
+
+  /* 移动端总体建议标题样式调整 */
+  .text-box .markdown-content :deep(h1),
+  .text-box .markdown-content :deep(h2),
+  .text-box .markdown-content :deep(h3) {
+    font-size: 1.1rem;
+    margin-top: 0.6em;
+    margin-bottom: 0.8em;
+    padding-bottom: 6px;
   }
 }
 
