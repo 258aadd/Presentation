@@ -100,14 +100,27 @@
               </div>
             </div>
             <div class="text-content">
+              <!-- ① 最上方：用户编辑文本（把你原来最下方“用户编辑文本”那整段原样搬到这里） -->
+              <!-- ⬇️ 若你想直接用变量写死，可用下面这段替换为你的原块 -->
+              <!--
+              <div v-if="parsedSections.user_edited_text || parsedSections.user_text" class="edited-text-display">
+                <h4>📝 用户编辑文本</h4>
+                <div v-html="parsedSections.user_edited_text || parsedSections.user_text"></div>
+                <div class="divider"></div>
+              </div>
+              -->
+
+              <!-- ② 中间：润色文本（保持 v-if / v-else 紧邻） -->
               <div v-if="filteredPolishedText" v-html="filteredPolishedText"></div>
               <div v-else class="no-content">暂无润色文本内容</div>
+
+              <!-- ③ 最下方：原文本 -->
               <div v-if="showOriginalText && parsedSections.original_text" class="original-text-display">
                 <h4>📄 原文本</h4>
                 <div v-html="parsedSections.original_text"></div>
-                <div class="divider"></div>
               </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -196,7 +209,7 @@ const parsedSections = computed(() =>
 
 const polishTextOptions = ref({
   showTextStructure: false,     // 文本结构
-  showTextPolishing: false,     // 文本润色
+  showTextPolishing: true,     // 文本润色
   showSpeechFlow: false,        // 语流呈现
   showLanguageExpression: false // 语言表达
 })
