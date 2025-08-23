@@ -909,6 +909,8 @@ defineExpose({
   font-size: 1.05rem;
   position: relative; /* 为底部渐变效果提供定位基础 */
   scroll-behavior: smooth; /* 平滑滚动 */
+  padding: 0 15px 15px 15px; /* 与polish-options保持一致的左右边距 */
+  margin: 0 -25px -25px -25px; /* 抵消text-box的内边距，确保内容对齐 */
   /* 美化滚动条样式 */
   scrollbar-width: thin;
   scrollbar-color: #667eea #f1f5f9;
@@ -1124,7 +1126,7 @@ defineExpose({
   background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
   border-radius: 12px;
   padding: 20px;
-  margin-bottom: 20px;
+  margin: 0 0 20px 0; /* 移除左右margin，保持与text-content对齐 */
   border: 1px solid #e2e8f0;
 }
 
@@ -1409,6 +1411,8 @@ defineExpose({
   /* 移动端文本内容滚动区域调整 */
   .text-content {
     max-height: 350px; /* 移动端减小最大高度 */
+    padding: 0 12px 12px 12px; /* 移动端调整padding与polish-options一致 */
+    margin: 0 -15px -15px -15px; /* 移动端margin抵消 */
   }
 
   .text-content::-webkit-scrollbar {
