@@ -906,7 +906,7 @@ defineExpose({
 
 .text-content {
   flex: 1;
-  max-height: 500px; /* 设置最大高度为500px */
+  max-height: none; /* 允许根据可用空间自适应高度，避免底部留白 */
   overflow-y: auto;
   line-height: 1.7;
   font-size: 1.05rem;
