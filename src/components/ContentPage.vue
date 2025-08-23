@@ -885,9 +885,55 @@ defineExpose({
 
 .text-content {
   flex: 1;
+  max-height: 500px; /* 设置最大高度为500px */
   overflow-y: auto;
   line-height: 1.7;
   font-size: 1.05rem;
+  position: relative; /* 为底部渐变效果提供定位基础 */
+  scroll-behavior: smooth; /* 平滑滚动 */
+  /* 美化滚动条样式 */
+  scrollbar-width: thin;
+  scrollbar-color: #667eea #f1f5f9;
+}
+
+/* Webkit浏览器滚动条样式 */
+.text-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.text-content::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.text-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.text-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* 滚动区域底部渐变效果 - 继承上面的text-content样式 */
+
+.text-content::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: linear-gradient(transparent, rgba(247, 250, 252, 0.8));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.text-content:hover::after {
+  opacity: 1;
 }
 
 .text-content div {
@@ -1332,6 +1378,15 @@ defineExpose({
 
   .text-box h3 {
     font-size: 1.25rem;
+  }
+
+  /* 移动端文本内容滚动区域调整 */
+  .text-content {
+    max-height: 350px; /* 移动端减小最大高度 */
+  }
+
+  .text-content::-webkit-scrollbar {
+    width: 6px; /* 移动端更细的滚动条 */
   }
 
   /* 移动端复选框样式调整 */
