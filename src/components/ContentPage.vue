@@ -841,6 +841,7 @@ defineExpose({
   grid-template-columns: 1fr 1fr;
   gap: 25px;
   margin-bottom: 40px;
+  align-items: stretch; /* 让两列高度一致 */
 }
 
 /* 左侧列 - 视频和总体建议 */
@@ -848,10 +849,27 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 20px;
+  height: 100%; /* 确保填满容器高度 */
+}
+
+/* 左侧列中的总体建议框 */
+.left-column .text-box {
+  flex: 1; /* 让总体建议框填满剩余空间 */
+  display: flex;
+  flex-direction: column;
 }
 
 /* 右侧列 - 润色文本 */
 .right-column {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch; /* 确保内容拉伸填满容器 */
+  height: 100%; /* 确保填满容器高度 */
+}
+
+/* 确保右侧润色文本框与左侧总体建议框底部对齐 */
+.right-column .text-box {
+  flex: 1; /* 让润色文本框填满剩余空间 */
   display: flex;
   flex-direction: column;
 }
@@ -1351,11 +1369,19 @@ defineExpose({
     grid-template-columns: 1fr;
     gap: 15px;
     margin-bottom: 30px;
+    align-items: stretch; /* 保持拉伸对齐 */
   }
 
   .left-column,
   .right-column {
     gap: 15px;
+    height: auto; /* 移动端不强制高度 */
+  }
+
+  /* 移动端取消flex填充，恢复自然高度 */
+  .left-column .text-box,
+  .right-column .text-box {
+    flex: none;
   }
 
   .overall-evaluation-bar {
