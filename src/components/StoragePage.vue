@@ -3,7 +3,7 @@
     <div class="page-header">
       <div class="header-content">
         <h2 class="page-title">💾 存储管理</h2>
-        <p class="page-subtitle">管理测试系统v2.0的存储空间和数据</p>
+        <p class="page-subtitle">管理测试系统v2.1的存储空间和数据</p>
       </div>
       <button class="btn btn-back" @click="$emit('navigate', 'home')">
         <span class="back-icon">←</span>

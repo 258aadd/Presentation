@@ -854,14 +854,21 @@ defineExpose({
   grid-template-columns: 1fr 1fr;
   gap: 25px;
   margin-bottom: 40px;
-  align-items: stretch; /* 让两列高度一致 */
+  align-items: stretch;
+
+  /* 关键：两列等高，但别太高；超过时让内部滚动 */
+  height: clamp(600px, 76vh, 1000px);
+  min-height: 0;
 }
+
 
 /* 左侧列 - 视频和总体建议 */
 .left-column {
   display: flex;
   flex-direction: column;
+  align-items: stretch; /* 确保内容拉伸填满容器 */
   gap: 20px;
+  min-height: 0; /* 允许子元素收缩 */
   height: 100%; /* 确保填满容器高度 */
 }
 
@@ -878,6 +885,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: stretch; /* 确保内容拉伸填满容器 */
+  min-height: 0; /* 允许子元素收缩 */
   height: 100%; /* 确保填满容器高度 */
 }
 
@@ -918,19 +926,22 @@ defineExpose({
 }
 
 .text-content {
-  flex: 1;
-  max-height: 600px; /* 允许根据可用空间自适应高度，避免底部留白 */
+  flex: 1 1 auto;
+  min-height: 0;         /* 允许在父容器里收缩，否则可能不滚动 */
+  height: auto;
   overflow-y: auto;
+
+  /* 原有的美化保持不变 */
   line-height: 1.7;
   font-size: 1.05rem;
-  position: relative; /* 为底部渐变效果提供定位基础 */
-  scroll-behavior: smooth; /* 平滑滚动 */
-  padding: 0 15px 15px 15px; /* 与polish-options保持一致的左右边距 */
-  margin: 0 -25px -25px -25px; /* 抵消text-box的内边距，确保内容对齐 */
-  /* 美化滚动条样式 */
+  position: relative;
+  scroll-behavior: smooth;
+  padding: 0 15px 15px 15px;
+  margin: 0 -25px -25px -25px;
   scrollbar-width: thin;
   scrollbar-color: #667eea #f1f5f9;
 }
+
 
 /* Webkit浏览器滚动条样式 */
 .text-content::-webkit-scrollbar {
@@ -1672,4 +1683,33 @@ defineExpose({
     min-width: 80px;
   }
 }
+
+
+/* 让两列在 grid 里允许横向收缩，防止被内部内容撑破导致看起来不齐 */
+.main-content-layout > .left-column,
+.main-content-layout > .right-column {
+  min-width: 0;
+}
+
+/* 左侧总体建议卡片拉满剩余列高，与右侧底边对齐 */
+.left-column .text-box {
+  flex: 1;
+  min-height: 0;   /* 不要用 unset，明确允许收缩 */
+  height: 100%;
+}
+
+/* 防止负外边距把内容“顶出”圆角与边框，看起来不对齐 */
+.text-box {
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* 去掉左右 -25px 负外边距，使文本区与卡片框架对齐 */
+.text-content {
+  margin: 0;                 /* 原来是：margin: 0 -25px -25px -25px; */
+  /* 如需保留底部紧贴效果，可用：margin: 0 0 -25px 0; */
+}
+
+
+
 </style>

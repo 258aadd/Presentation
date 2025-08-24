@@ -3,7 +3,7 @@
     <div class="page-header">
       <div class="header-content">
         <h2 class="page-title">📤 上传文件</h2>
-        <p class="page-subtitle">上传视频文件和Markdown文档到测试系统v2.0</p>
+        <p class="page-subtitle">上传视频文件和Markdown文档到测试系统v2.1</p>
       </div>
       <button class="btn btn-back" @click="$emit('navigate', 'home')">
         <span class="back-icon">←</span>
