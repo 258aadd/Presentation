@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { database } from './utils/database_old'
+import { database } from './utils/database'
 import HomePage from './components/HomePage.vue'
 import UploadPage from './components/UploadPage.vue'
 import BrowsePage from './components/BrowsePage.vue'

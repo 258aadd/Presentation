@@ -857,7 +857,7 @@ defineExpose({
   align-items: stretch;
 
   /* 关键：两列等高，但别太高；超过时让内部滚动 */
-  height: clamp(600px, 76vh, 1000px);
+  height: clamp(600px, 76vh, 10000px);
   min-height: 0;
 }
 
