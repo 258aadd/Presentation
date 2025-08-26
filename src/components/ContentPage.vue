@@ -985,11 +985,13 @@ defineExpose({
   grid-template-columns: 1fr 1fr;
   gap: 25px;
   margin-bottom: 40px;
-  align-items: stretch;
 
-  /* 关键：两列等高，但别太高；超过时让内部滚动 */
+  align-items: start;
+  /* align-items: stretch;
+
+
   height: clamp(600px, 76vh, 10000px);
-  min-height: 0;
+  min-height: 0; */
 }
 
 
@@ -999,35 +1001,35 @@ defineExpose({
   flex-direction: column;
   align-items: stretch; /* 确保内容拉伸填满容器 */
   gap: 20px;
-  min-height: 0; /* 允许子元素收缩 */
-  height: 100%; /* 确保填满容器高度 */
+  /* min-height: 0;
+  height: 100%;  */
 }
 
 /* 左侧列中的总体建议框 */
-.left-column .text-box {
-  flex: 1; /* 让总体建议框填满剩余空间 */
+/* .left-column .text-box {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: unset; /* 移除最小高度限制，允许自由拉伸 */
-}
+  min-height: unset;
+} */
 
 /* 右侧列 - 润色文本 */
 .right-column {
   display: flex;
   flex-direction: column;
   align-items: stretch; /* 确保内容拉伸填满容器 */
-  min-height: 0; /* 允许子元素收缩 */
-  height: 100%; /* 确保填满容器高度 */
+  /* min-height: 0;
+  height: 100%;  */
 }
 
 /* 确保右侧润色文本框与左侧总体建议框底部对齐 */
-.right-column .text-box {
-  flex: 1; /* 让润色文本框填满剩余空间 */
+/* .right-column .text-box {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%; /* 强制填满整个右侧列高度 */
-  min-height: unset; /* 移除最小高度限制 */
-}
+  height: 100%;
+  min-height: unset;
+} */
 
 /* 文本框样式 */
 .text-box {
@@ -1035,9 +1037,9 @@ defineExpose({
   padding: 25px;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
-  min-height: 220px;
+  /* min-height: 220px;
   display: flex;
-  flex-direction: column;
+  flex-direction: column; */
   box-shadow: 0 4px 20px rgba(0,0,0,0.06);
   transition: all 0.3s ease;
 }
@@ -1057,12 +1059,19 @@ defineExpose({
 }
 
 .text-content {
+  /* 移除所有高度和滚动限制 */
+  line-height: 1.7;
+  font-size: 1.05rem;
+  /* 移除固定高度、overflow、padding调整等 */
+}
+
+/* .text-content {
   flex: 1 1 auto;
-  min-height: 0;         /* 允许在父容器里收缩，否则可能不滚动 */
+  min-height: 0;
   height: auto;
   overflow-y: auto;
 
-  /* 原有的美化保持不变 */
+
   line-height: 1.7;
   font-size: 1.05rem;
   position: relative;
@@ -1071,11 +1080,11 @@ defineExpose({
   margin: 0 -25px -25px -25px;
   scrollbar-width: thin;
   scrollbar-color: #667eea #f1f5f9;
-}
+} */
 
 
 /* Webkit浏览器滚动条样式 */
-.text-content::-webkit-scrollbar {
+/* .text-content::-webkit-scrollbar {
   width: 8px;
 }
 
@@ -1093,11 +1102,11 @@ defineExpose({
 .text-content::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-}
+} */
 
 /* 滚动区域底部渐变效果 - 继承上面的text-content样式 */
 
-.text-content::after {
+/* .text-content::after {
   content: '';
   position: absolute;
   bottom: 0;
@@ -1108,11 +1117,11 @@ defineExpose({
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease;
-}
+} */
 
-.text-content:hover::after {
+/* .text-content:hover::after {
   opacity: 1;
-}
+} */
 
 .text-content div {
   color: #2d3748;
