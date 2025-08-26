@@ -31,19 +31,32 @@
         <!-- 左侧：视频和总体建议 -->
         <div class="left-column">
           <!-- 视频部分 -->
-          <div class="video-section">
+          <div ref="videoSectionRef" class="video-section">
             <h3>🎬 视频内容</h3>
             <video
               v-if="videoSrc"
+              ref="videoElement"
               :src="videoSrc"
               controls
-              width="100%"
+              preload="metadata"
+              playsinline
+              style="max-width: 100%;"
               @error="handleVideoError"
+              @enterpictureinpicture="onEnterPiP"
+              @leavepictureinpicture="onLeavePiP"
             >
               您的浏览器不支持视频播放。
             </video>
             <div v-else class="no-content">
               暂无视频内容
+            </div>
+
+            <!-- PiP 工具条：用于首次"用户手势"授权；之后滚动会自动切换 -->
+            <div v-if="videoSrc" class="pip-toolbar">
+              <button class="pip-btn" @click="enableAutoPiP" :disabled="!canUsePiP">
+                {{ canUsePiP ? (allowAutoPiP ? (pipActive ? '退出 PiP' : '进入 PiP') : '启用悬浮播放（PiP）') : '浏览器不支持 PiP' }}
+              </button>
+              <span v-if="pipActive" class="pip-status">已在小窗中播放</span>
             </div>
           </div>
 
@@ -153,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { database, type FileData } from '../utils/database'
 import { markdownToHtml } from '../utils/markdownRenderer'
 
@@ -171,10 +184,50 @@ const loading = ref(false)
 
 const contentTitle = computed(() => contentData.value?.title || '内容详情')
 const videoSrc = computed(() => contentData.value?.video || '')
+
+// PiP 相关的引用与状态
+const videoElement = ref<HTMLVideoElement | null>(null)
+const videoSectionRef = ref<HTMLElement | null>(null)
+const observer = ref<IntersectionObserver | null>(null)
+
+// PiP 状态
+const pipActive = ref(false)       // 当前是否处于 Picture-in-Picture
+const allowAutoPiP = ref(false)    // 是否已经通过一次"用户手势"授权，允许自动切换
+
+// 浏览器能力检测（标准 API）
+const canUsePiP =
+  typeof document !== 'undefined' &&
+  'pictureInPictureEnabled' in document &&
+  typeof HTMLVideoElement !== 'undefined' &&
+  'requestPictureInPicture' in HTMLVideoElement.prototype
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const markdownHtml = computed(() =>
   contentData.value?.markdown ? markdownToHtml(contentData.value.markdown) : ''
 )
+
+// PiP 事件处理：进入/退出
+const onEnterPiP = () => { pipActive.value = true }
+const onLeavePiP = () => { pipActive.value = false }
+
+// 用户手势：手动进入/退出 PiP
+const enableAutoPiP = async () => {
+  const v = videoElement.value
+  if (!v || !canUsePiP) return
+
+  try {
+    if (document.pictureInPictureElement) {
+      // 如果已经在 PiP，则退出
+      await (document as Document & { exitPictureInPicture: () => Promise<void> }).exitPictureInPicture()
+    } else {
+      // 首次手势触发，进入 PiP（之后可自动切换）
+      await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
+    }
+    allowAutoPiP.value = true
+  } catch (err) {
+    // 常见失败原因：未播放媒体、策略限制（未有用户手势）等
+    console.warn('requestPictureInPicture failed:', err)
+  }
+}
 
 // 解析Markdown内容，按一级标题分类
 const parseMarkdownSections = (markdown: string) => {
@@ -514,6 +567,58 @@ const handleVideoError = (event: Event) => {
   alert('视频加载失败，可能是文件格式不支持或文件已损坏')
 }
 
+// 初始化视频观察器：决定自动进入/退出 PiP
+const initVideoObserver = () => {
+  // 若不支持 PiP 或无节点，直接跳过
+  if (!canUsePiP || !videoSectionRef.value || !videoElement.value) return
+
+  // 先断开旧观察器，避免重复绑定
+  if (observer.value) {
+    observer.value.disconnect()
+    observer.value = null
+  }
+
+  observer.value = new IntersectionObserver(async ([entry]) => {
+    // 判定是否"足够在视口中"（>50% 可见）
+    const inView = entry.isIntersecting && entry.intersectionRatio > 0.5
+    const v = videoElement.value!
+
+    try {
+      if (!inView && allowAutoPiP.value && !document.pictureInPictureElement) {
+        // 视频离开视口：若已授权，自动进入 PiP
+        await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
+      } else if (inView && document.pictureInPictureElement === v) {
+        // 视频回到视口：若当前小窗对应此视频，则退出 PiP
+        await (document as Document & { exitPictureInPicture: () => Promise<void> }).exitPictureInPicture()
+      }
+    } catch (err) {
+      console.warn('Auto PiP toggle failed:', err)
+    }
+  }, { threshold: [0, 0.5, 1] })
+
+  // 观察"视频区域"容器，而不是 video 元素本身（容器可控性更好）
+  observer.value.observe(videoSectionRef.value)
+
+  // 附加：监听 PiP 事件（双保险；也便于 UI 联动）
+  const v = videoElement.value
+  v?.addEventListener('enterpictureinpicture', onEnterPiP as EventListener)
+  v?.addEventListener('leavepictureinpicture', onLeavePiP as EventListener)
+}
+
+// 可选增强：切到后台时自动进入 PiP（需已授权）
+const onVisibilityChange = async () => {
+  if (!canUsePiP || !allowAutoPiP.value) return
+  const v = videoElement.value
+  if (!v) return
+  try {
+    if (document.hidden && !document.pictureInPictureElement) {
+      await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
+    }
+  } catch {
+    // 忽略错误
+  }
+}
+
 // 切换原文本显示状态
 const toggleOriginalText = () => {
   showOriginalText.value = !showOriginalText.value
@@ -680,6 +785,32 @@ watch(
   },
   { immediate: true }
 )
+
+// 当视频源变化时，等待节点渲染完成后重新初始化观察器
+watch(() => videoSrc.value, async () => {
+  await nextTick()
+  initVideoObserver()
+})
+
+// 生命周期管理
+onMounted(async () => {
+  await nextTick()
+  initVideoObserver()
+  document.addEventListener('visibilitychange', onVisibilityChange)
+})
+
+onUnmounted(() => {
+  // 断开观察器
+  observer.value?.disconnect()
+  observer.value = null
+
+  // 移除 PiP 事件监听
+  const v = videoElement.value
+  v?.removeEventListener('enterpictureinpicture', onEnterPiP as EventListener)
+  v?.removeEventListener('leavepictureinpicture', onLeavePiP as EventListener)
+
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
 
 // 暴露方法供父组件调用
 defineExpose({
@@ -1208,6 +1339,73 @@ defineExpose({
   background: #000;
 }
 
+/* PiP 工具条样式 */
+.pip-toolbar {
+  margin-top: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pip-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 12px rgba(102, 126, 234, 0.3);
+  white-space: nowrap;
+  min-width: 120px;
+  letter-spacing: 0.3px;
+}
+
+.pip-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  filter: brightness(1.1);
+}
+
+.pip-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.pip-btn:disabled {
+  background: #cbd5e0;
+  color: #a0aec0;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.pip-status {
+  font-size: 0.85rem;
+  color: #48bb78;
+  font-weight: 600;
+  padding: 4px 12px;
+  background: rgba(72, 187, 120, 0.1);
+  border-radius: 16px;
+  border: 1px solid rgba(72, 187, 120, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pip-status::before {
+  content: '●';
+  animation: pip-pulse 2s infinite;
+}
+
+@keyframes pip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .no-content {
   text-align: center;
   color: #718096;
@@ -1514,6 +1712,29 @@ defineExpose({
     margin-top: 0.6em;
     margin-bottom: 0.8em;
     padding-bottom: 6px;
+  }
+
+  /* 移动端 PiP 工具条样式调整 */
+  .pip-toolbar {
+    margin-top: 10px;
+    gap: 8px;
+    justify-content: center;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pip-btn {
+    font-size: 0.85rem;
+    padding: 10px 14px;
+    min-width: auto;
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .pip-status {
+    font-size: 0.8rem;
+    justify-content: center;
+    margin-top: 4px;
   }
 }
 
