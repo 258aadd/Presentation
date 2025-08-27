@@ -186,6 +186,8 @@ const videoSectionRef = ref<HTMLElement | null>(null)
 const observer = ref<IntersectionObserver | null>(null)
 // 保存 Safari 事件处理器，便于卸载
 const safariModeChangedHandler = ref<((e: Event) => void) | null>(null)
+// 记录是否需要在 PiP 退出后自动恢复播放
+const shouldResumeAfterPiPExit = ref(false)
 
 // PiP 状态
 const pipActive = ref(false)       // 当前是否处于 Picture-in-Picture
@@ -247,6 +249,35 @@ const exitPiP = async () => {
     wv.webkitSetPresentationMode('inline')
   }
 }
+
+// 统一的恢复播放逻辑：在退出 PiP 后，尽量把之前的播放状态接上
+const ensureResume = (v: HTMLVideoElement) => {
+  // 没有“需要恢复”的意图就不做事
+  if (!shouldResumeAfterPiPExit.value) return
+
+  let tries = 0
+  const tryPlay = () => {
+    // 等一帧，确保布局/滚动/渲染稳定
+    requestAnimationFrame(() => {
+      if (!shouldResumeAfterPiPExit.value) return
+      if (v.paused) {
+        v.play().then(() => {
+          shouldResumeAfterPiPExit.value = false
+        }).catch(() => {
+          // 某些浏览器可能还没准备好，再试几次（~0.7s 内）
+          if (++tries < 6) setTimeout(tryPlay, 120)
+        })
+      } else {
+        // 已经在播了，清掉意图
+        shouldResumeAfterPiPExit.value = false
+      }
+    })
+  }
+
+  // 给 DOM 复位一个极短缓冲
+  setTimeout(tryPlay, 50)
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const markdownHtml = computed(() =>
   contentData.value?.markdown ? markdownToHtml(contentData.value.markdown) : ''
@@ -254,13 +285,18 @@ const markdownHtml = computed(() =>
 
 // ===== 事件回调（不要断开观察器）=====
 const onEnterPiP = () => {
-  // 进入 PiP 时仅更新状态，不要断开观察器
+  const v = videoElement.value
+  if (v && !v.paused && !v.ended && v.readyState > 2) {
+    shouldResumeAfterPiPExit.value = true
+  }
   pipActive.value = true
 }
 const onLeavePiP = () => {
-  // 退出 PiP 时更新状态
   pipActive.value = false
+  const v = videoElement.value
+  if (v) ensureResume(v) // 统一恢复，带重试更稳
 }
+
 
 // 解析Markdown内容，按一级标题分类
 const parseMarkdownSections = (markdown: string) => {
@@ -620,13 +656,26 @@ const initVideoObserver = () => {
         // 离开可视区：自动进入 PiP（仅当未在 PiP 且视频在播）
         const isPlaying = !v.paused && !v.ended && v.readyState > 2
         if (isPlaying && !isPiPActive(v)) {
+          shouldResumeAfterPiPExit.value = true
           await enterPiP()
         }
       } else {
         // 回到可视区：只要当前在 PiP 就退出
         if (isPiPActive(v)) {
           // 避免和浏览器内部的布局/滚动同帧竞争，延后到宏任务
-          setTimeout(() => { void exitPiP() }, 0)
+          const isPlaying = !v.paused && !v.ended && v.readyState > 2
+          shouldResumeAfterPiPExit.value = isPlaying
+          setTimeout(async () => {
+            if (isPiPActive(v)) {
+              try {
+                await exitPiP()
+              } catch (err) {
+                console.warn('退出 PiP 失败:', err)
+              } finally {
+                ensureResume(v)
+              }
+            }
+          }, 50)
         }
       }
     } catch (err) {
@@ -670,7 +719,31 @@ const bindPiPEvents = () => {
   if (hasWebKitPresentation(v)) {
     const wv = v as VideoWithWebKit
     const handler = () => {
-      pipActive.value = wv.webkitPresentationMode === 'picture-in-picture'
+      const inPiP = wv.webkitPresentationMode === 'picture-in-picture'
+      if (inPiP) {
+        // 进入 PiP
+        const isPlaying = !v.paused && !v.ended && v.readyState > 2
+        if (isPlaying) {
+          shouldResumeAfterPiPExit.value = true
+        }
+        pipActive.value = true
+      } else {
+        // 退出 PiP
+        pipActive.value = false
+        // 使用 nextTick 和延迟确保恢复播放
+        nextTick(() => {
+          setTimeout(() => {
+            if (shouldResumeAfterPiPExit.value) {
+              v.play().then(() => {
+                shouldResumeAfterPiPExit.value = false
+              }).catch((err) => {
+                console.warn('Safari 视频恢复播放失败:', err)
+                shouldResumeAfterPiPExit.value = false
+              })
+            }
+          }, 100)
+        })
+      }
     }
     v.addEventListener('webkitpresentationmodechanged', handler as EventListener, { passive: true } as AddEventListenerOptions)
     safariModeChangedHandler.value = handler
