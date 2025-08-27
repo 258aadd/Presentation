@@ -51,12 +51,9 @@
               暂无视频内容
             </div>
 
-            <!-- PiP 工具条：用于首次"用户手势"授权；之后滚动会自动切换 -->
-            <div v-if="videoSrc" class="pip-toolbar">
-              <button class="pip-btn" @click="enableAutoPiP" :disabled="!canUsePiP">
-                {{ canUsePiP ? (allowAutoPiP ? (pipActive ? '退出 PiP' : '进入 PiP') : '启用悬浮播放（PiP）') : '浏览器不支持 PiP' }}
-              </button>
-              <span v-if="pipActive" class="pip-status">已在小窗中播放</span>
+            <!-- 自动悬浮播放状态显示 -->
+            <div v-if="videoSrc && pipActive" class="pip-status-display">
+              <span class="pip-status">正在悬浮播放</span>
             </div>
           </div>
 
@@ -192,7 +189,6 @@ const observer = ref<IntersectionObserver | null>(null)
 
 // PiP 状态
 const pipActive = ref(false)       // 当前是否处于 Picture-in-Picture
-const allowAutoPiP = ref(false)    // 是否已经通过一次"用户手势"授权，允许自动切换
 
 // 浏览器能力检测（标准 API）
 const canUsePiP =
@@ -206,26 +202,40 @@ const markdownHtml = computed(() =>
 )
 
 // PiP 事件处理：进入/退出
-const onEnterPiP = () => { pipActive.value = true }
-const onLeavePiP = () => { pipActive.value = false }
+const onEnterPiP = () => {
+  pipActive.value = true
+  if (observer.value) {
+    observer.value.disconnect()
+    observer.value = null
+  }
+}
+const onLeavePiP = () => {
+  pipActive.value = false
+  if (videoSectionRef.value && !observer.value) {
+    initVideoObserver()
+  }
+}
 
-// 用户手势：手动进入/退出 PiP
-const enableAutoPiP = async () => {
+// 进入 PiP 模式
+const enterPiP = async () => {
   const v = videoElement.value
-  if (!v || !canUsePiP) return
+  if (!v || !canUsePiP || document.pictureInPictureElement) return
 
   try {
-    if (document.pictureInPictureElement) {
-      // 如果已经在 PiP，则退出
-      await (document as Document & { exitPictureInPicture: () => Promise<void> }).exitPictureInPicture()
-    } else {
-      // 首次手势触发，进入 PiP（之后可自动切换）
-      await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
-    }
-    allowAutoPiP.value = true
+    await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
   } catch (err) {
-    // 常见失败原因：未播放媒体、策略限制（未有用户手势）等
     console.warn('requestPictureInPicture failed:', err)
+  }
+}
+
+// 退出 PiP 模式
+const exitPiP = async () => {
+  if (!document.pictureInPictureElement) return
+
+  try {
+    await (document as Document & { exitPictureInPicture: () => Promise<void> }).exitPictureInPicture()
+  } catch (err) {
+    console.warn('exitPictureInPicture failed:', err)
   }
 }
 
@@ -583,13 +593,16 @@ const initVideoObserver = () => {
     const inView = entry.isIntersecting && entry.intersectionRatio > 0.5
     const v = videoElement.value!
 
+    // 检查视频是否正在播放
+    const isPlaying = !v.paused && !v.ended && v.readyState > 2
+
     try {
-      if (!inView && allowAutoPiP.value && !document.pictureInPictureElement) {
-        // 视频离开视口：若已授权，自动进入 PiP
-        await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
+      if (!inView && isPlaying && !document.pictureInPictureElement) {
+        // 视频离开视口且正在播放：自动进入 PiP
+        await enterPiP()
       } else if (inView && document.pictureInPictureElement === v) {
         // 视频回到视口：若当前小窗对应此视频，则退出 PiP
-        await (document as Document & { exitPictureInPicture: () => Promise<void> }).exitPictureInPicture()
+        await exitPiP()
       }
     } catch (err) {
       console.warn('Auto PiP toggle failed:', err)
@@ -605,14 +618,18 @@ const initVideoObserver = () => {
   v?.addEventListener('leavepictureinpicture', onLeavePiP as EventListener)
 }
 
-// 可选增强：切到后台时自动进入 PiP（需已授权）
+// 可选增强：切到后台时自动进入 PiP
 const onVisibilityChange = async () => {
-  if (!canUsePiP || !allowAutoPiP.value) return
+  if (!canUsePiP) return
   const v = videoElement.value
   if (!v) return
+
+  // 检查视频是否正在播放
+  const isPlaying = !v.paused && !v.ended && v.readyState > 2
+
   try {
-    if (document.hidden && !document.pictureInPictureElement) {
-      await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
+    if (document.hidden && isPlaying && !document.pictureInPictureElement) {
+      await enterPiP()
     }
   } catch {
     // 忽略错误
@@ -1723,27 +1740,14 @@ defineExpose({
     padding-bottom: 6px;
   }
 
-  /* 移动端 PiP 工具条样式调整 */
-  .pip-toolbar {
+  /* 移动端 PiP 状态样式调整 */
+  .pip-status-display {
     margin-top: 10px;
-    gap: 8px;
-    justify-content: center;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .pip-btn {
-    font-size: 0.85rem;
-    padding: 10px 14px;
-    min-width: auto;
-    width: 100%;
-    border-radius: 16px;
   }
 
   .pip-status {
     font-size: 0.8rem;
     justify-content: center;
-    margin-top: 4px;
   }
 }
 
