@@ -133,6 +133,20 @@
         </div>
       </div>
 
+      <!-- 用户编辑差异显示区域 -->
+      <div v-if="hasUserEditDiff" class="user-edit-diff-bar">
+        <div class="diff-header">
+          <h3>📝 用户编辑差异</h3>
+          <div class="diff-actions">
+            <button class="edit-text-btn" @click="openEditDialog">编辑文本</button>
+            <button class="clear-diff-btn" @click="confirmClearDiff" :disabled="!hasUserEditDiff">清除差异</button>
+          </div>
+        </div>
+        <div class="diff-content">
+          <div v-html="userEditDiffDisplay"></div>
+        </div>
+      </div>
+
       <!-- 编辑弹窗 -->
       <div v-if="showEditDialog" class="edit-dialog-overlay" @click="closeEditDialog">
         <div class="edit-dialog" @click.stop>
@@ -201,6 +215,13 @@ type VideoWithWebKit = HTMLVideoElement & {
 const hasWebKitPresentation = (v: HTMLVideoElement): v is VideoWithWebKit => {
   const obj = v as unknown as { webkitPresentationMode?: unknown; webkitSetPresentationMode?: unknown }
   return typeof obj.webkitPresentationMode === 'string' || typeof obj.webkitSetPresentationMode === 'function'
+}
+
+const confirmClearDiff = () => {
+  if (!hasUserEditDiff.value) return
+  if (window.confirm('确定清除差异并还原文本吗？')) {
+    clearUserEdit()
+  }
 }
 
 // ===== PiP 工具函数（跨浏览器） =====
@@ -382,62 +403,16 @@ const applyCurrentFilter = (htmlContent: string) => {
   return filteredContent
 }
 
-// 智能合并HTML标记和用户编辑差异
-const mergeUserEditWithHTML = (htmlContent: string): string => {
-  // 1. 先应用当前过滤选项，保留HTML标记
-  const filteredHTML = applyCurrentFilter(htmlContent)
 
-  // 2. 提取纯文本
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = filteredHTML
-  const currentCleanText = tempDiv.textContent || tempDiv.innerText || ''
 
-  // 3. 如果当前文本与编辑基础文本相同，在HTML基础上添加用户编辑差异
-  if (currentCleanText === originalCleanText.value) {
-    return addUserEditDiffToHTML(filteredHTML, originalCleanText.value, userModifiedText.value)
-  }
-
-  // 4. 如果不同，使用混合显示：显示过滤后的HTML + 用户编辑差异的分段显示
-  const userDiff = computeTextDiff(originalCleanText.value, userModifiedText.value)
-  return `${filteredHTML}<div style="margin-top: 15px; padding: 10px; border-top: 2px solid #e53e3e; background: rgba(229, 62, 62, 0.05);"><strong style="color: #e53e3e;">📝 用户编辑差异：</strong><br/>${userDiff}</div>`
-}
-
-// 在HTML中添加用户编辑差异标记
-const addUserEditDiffToHTML = (htmlContent: string, originalText: string, modifiedText: string): string => {
-  // 计算文本差异
-  const diffResult = computeTextDiff(originalText, modifiedText)
-
-  // 如果没有差异，返回原HTML
-  if (diffResult === escapeHtml(originalText)) {
-    return htmlContent
-  }
-
-  // 简单策略：如果文本完全相同，显示HTML + 差异，否则替换为差异结果
-  const tempDiv = document.createElement('div')
-  tempDiv.innerHTML = htmlContent
-  const htmlText = tempDiv.textContent || tempDiv.innerText || ''
-
-  if (htmlText === originalText) {
-    // 文本相同，可以安全地在HTML后添加差异
-    return `${htmlContent}<div style="margin-top: 10px; padding: 8px; border-left: 3px solid #e53e3e; background: rgba(229, 62, 62, 0.05);"><strong style="color: #e53e3e; font-size: 0.9em;">用户编辑版本：</strong><br/>${diffResult}</div>`
-  } else {
-    // 文本不同，显示分段
-    return `${htmlContent}<div style="margin-top: 15px; padding: 10px; border-top: 2px solid #e53e3e; background: rgba(229, 62, 62, 0.05);"><strong style="color: #e53e3e;">📝 用户编辑差异：</strong><br/>${diffResult}</div>`
-  }
-}
-
-// 过滤润色文本内容
-const filterPolishedText = (htmlContent: string) => {
+// 过滤润色文本内容（不包含用户编辑差异）
+const filterPolishedTextWithoutDiff = (htmlContent: string) => {
   if (!htmlContent) return ''
-
-  // 如果有用户编辑，默认显示编辑差异
-  if (userModifiedText.value && originalCleanText.value) {
-    return mergeUserEditWithHTML(htmlContent)
-  }
-
-  // 没有用户编辑时，按当前选项过滤
+  // 只按当前选项过滤，不包含用户编辑差异
   return applyCurrentFilter(htmlContent)
 }
+
+
 
 // 移除文本结构标记（橙色 #FF4500）
 const removeTextStructureTags = (content: string) => {
@@ -510,10 +485,21 @@ const removeBlueStyling = (content: string) => {
   return result
 }
 
-// 过滤后的润色文本内容
+// 检查是否有用户编辑差异
+const hasUserEditDiff = computed(() => {
+  return !!(userModifiedText.value && originalCleanText.value && userModifiedText.value !== originalCleanText.value)
+})
+
+// 用户编辑差异显示内容
+const userEditDiffDisplay = computed(() => {
+  if (!hasUserEditDiff.value) return ''
+  return computeTextDiff(originalCleanText.value, userModifiedText.value)
+})
+
+// 过滤后的润色文本内容（移除用户编辑差异显示）
 const filteredPolishedText = computed(() =>
   explicitNumberOrderedLists(
-    filterPolishedText(parsedSections.value.polished_text || '')
+    filterPolishedTextWithoutDiff(parsedSections.value.polished_text || '')
   )
 )
 
@@ -1110,6 +1096,62 @@ defineExpose({
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* 用户编辑差异长条样式 */
+.user-edit-diff-bar {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  border-radius: 16px;
+  padding: 25px 30px;
+  margin-bottom: 25px;
+  color: #1f2937;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e5e7eb;
+}
+
+.user-edit-diff-bar .diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px 0;
+}
+
+.user-edit-diff-bar .diff-header .edit-text-btn {
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+}
+
+.user-edit-diff-bar .diff-header .diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.user-edit-diff-bar .diff-header .clear-diff-btn {
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.1);
+}
+
+.user-edit-diff-bar .diff-header .clear-diff-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(185, 28, 28, 0.15);
+  filter: brightness(1.02);
+}
+
+.user-edit-diff-bar .diff-header .clear-diff-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .overall-evaluation-bar h3 {
   color: white;
   margin: 0 0 15px 0;
@@ -1120,13 +1162,57 @@ defineExpose({
   padding: 0;
 }
 
+.user-edit-diff-bar h3 {
+  color: #111827;
+  margin: 0 0 12px 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-shadow: none;
+  border: none;
+  padding: 0;
+}
+
 .evaluation-content {
   line-height: 1.7;
   font-size: 1.1rem;
 }
 
+.diff-content {
+  line-height: 1.75;
+  font-size: 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
 .evaluation-content div {
   color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.diff-content div {
+  color: #1f2937 !important;
+}
+
+/* 用户编辑差异区域中的差异样式调整 */
+.diff-content del {
+  color: #991b1b !important;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  text-decoration: line-through;
+  padding: 0 2px;
+  border-radius: 4px;
+}
+
+.diff-content span[style*="color:#e53e3e"] {
+  color: #166534 !important;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  font-weight: 700;
+  padding: 0 2px;
+  border-radius: 4px;
+  text-shadow: none;
 }
 
 .overall-evaluation-bar .no-content {
@@ -1785,11 +1871,24 @@ defineExpose({
     margin-bottom: 20px;
   }
 
+  .user-edit-diff-bar {
+    padding: 20px 25px;
+    margin-bottom: 20px;
+  }
+
   .overall-evaluation-bar h3 {
     font-size: 1.2rem;
   }
 
+  .user-edit-diff-bar h3 {
+    font-size: 1.2rem;
+  }
+
   .evaluation-content {
+    font-size: 1rem;
+  }
+
+  .diff-content {
     font-size: 1rem;
   }
 
