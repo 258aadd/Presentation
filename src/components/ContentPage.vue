@@ -42,8 +42,6 @@
               playsinline
               style="max-width: 100%;"
               @error="handleVideoError"
-              @enterpictureinpicture="onEnterPiP"
-              @leavepictureinpicture="onLeavePiP"
             >
               您的浏览器不支持视频播放。
             </video>
@@ -186,57 +184,82 @@ const videoSrc = computed(() => contentData.value?.video || '')
 const videoElement = ref<HTMLVideoElement | null>(null)
 const videoSectionRef = ref<HTMLElement | null>(null)
 const observer = ref<IntersectionObserver | null>(null)
+// 保存 Safari 事件处理器，便于卸载
+const safariModeChangedHandler = ref<((e: Event) => void) | null>(null)
 
 // PiP 状态
 const pipActive = ref(false)       // 当前是否处于 Picture-in-Picture
 
-// 浏览器能力检测（标准 API）
-const canUsePiP =
-  typeof document !== 'undefined' &&
-  'pictureInPictureEnabled' in document &&
-  typeof HTMLVideoElement !== 'undefined' &&
-  'requestPictureInPicture' in HTMLVideoElement.prototype
+// WebKit 扩展类型
+type VideoWithWebKit = HTMLVideoElement & {
+  webkitPresentationMode: 'inline' | 'picture-in-picture' | 'fullscreen'
+  webkitSetPresentationMode: (mode: 'inline' | 'picture-in-picture' | 'fullscreen') => void
+}
+
+const hasWebKitPresentation = (v: HTMLVideoElement): v is VideoWithWebKit => {
+  const obj = v as unknown as { webkitPresentationMode?: unknown; webkitSetPresentationMode?: unknown }
+  return typeof obj.webkitPresentationMode === 'string' || typeof obj.webkitSetPresentationMode === 'function'
+}
+
+// ===== PiP 工具函数（跨浏览器） =====
+// 判定当前是否在 PiP（兼容 Safari）
+const isPiPActive = (v: HTMLVideoElement) => {
+  // 标准
+  if (document.pictureInPictureElement) return true
+  // Safari 专属
+  if (hasWebKitPresentation(v)) {
+  const wv = v as VideoWithWebKit
+  return wv.webkitPresentationMode === 'picture-in-picture'
+  }
+  return false
+}
+
+const enterPiP = async () => {
+  const v = videoElement.value!
+  if (!v) return
+  // 标准
+  if ('requestPictureInPicture' in v) {
+    // 避免并发
+    if (document.pictureInPictureElement) return
+    await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
+    return
+  }
+  // Safari
+  if (hasWebKitPresentation(v)) {
+    const wv = v as VideoWithWebKit
+    wv.webkitSetPresentationMode('picture-in-picture')
+    return
+  }
+  // 不支持则可实现自定义悬浮窗…（此处略）
+}
+
+const exitPiP = async () => {
+  const v = videoElement.value!
+  if (!v) return
+  // 标准
+  if (document.pictureInPictureElement) {
+    await (document as Document & { exitPictureInPicture: () => Promise<void> }).exitPictureInPicture()
+    return
+  }
+  // Safari
+  if (hasWebKitPresentation(v)) {
+    const wv = v as VideoWithWebKit
+    wv.webkitSetPresentationMode('inline')
+  }
+}
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const markdownHtml = computed(() =>
   contentData.value?.markdown ? markdownToHtml(contentData.value.markdown) : ''
 )
 
-// PiP 事件处理：进入/退出
+// ===== 事件回调（不要断开观察器）=====
 const onEnterPiP = () => {
+  // 进入 PiP 时仅更新状态，不要断开观察器
   pipActive.value = true
-  if (observer.value) {
-    observer.value.disconnect()
-    observer.value = null
-  }
 }
 const onLeavePiP = () => {
+  // 退出 PiP 时更新状态
   pipActive.value = false
-  if (videoSectionRef.value && !observer.value) {
-    initVideoObserver()
-  }
-}
-
-// 进入 PiP 模式
-const enterPiP = async () => {
-  const v = videoElement.value
-  if (!v || !canUsePiP || document.pictureInPictureElement) return
-
-  try {
-    await (v as HTMLVideoElement & { requestPictureInPicture: () => Promise<PictureInPictureWindow> }).requestPictureInPicture()
-  } catch (err) {
-    console.warn('requestPictureInPicture failed:', err)
-  }
-}
-
-// 退出 PiP 模式
-const exitPiP = async () => {
-  if (!document.pictureInPictureElement) return
-
-  try {
-    await (document as Document & { exitPictureInPicture: () => Promise<void> }).exitPictureInPicture()
-  } catch (err) {
-    console.warn('exitPictureInPicture failed:', err)
-  }
 }
 
 // 解析Markdown内容，按一级标题分类
@@ -579,8 +602,7 @@ const handleVideoError = (event: Event) => {
 
 // 初始化视频观察器：决定自动进入/退出 PiP
 const initVideoObserver = () => {
-  // 若不支持 PiP 或无节点，直接跳过
-  if (!canUsePiP || !videoSectionRef.value || !videoElement.value) return
+  if (!videoElement.value) return
 
   // 先断开旧观察器，避免重复绑定
   if (observer.value) {
@@ -589,38 +611,75 @@ const initVideoObserver = () => {
   }
 
   observer.value = new IntersectionObserver(async ([entry]) => {
-    // 判定是否"足够在视口中"（>50% 可见）
-    const inView = entry.isIntersecting && entry.intersectionRatio > 0.5
     const v = videoElement.value!
-
-    // 检查视频是否正在播放
-    const isPlaying = !v.paused && !v.ended && v.readyState > 2
+    // 视为“可见”的条件（更宽松一点，提升可靠性）
+    const inView = entry.isIntersecting && entry.intersectionRatio >= 0.5
 
     try {
-      if (!inView && isPlaying && !document.pictureInPictureElement) {
-        // 视频离开视口且正在播放：自动进入 PiP
-        await enterPiP()
-      } else if (inView && document.pictureInPictureElement === v) {
-        // 视频回到视口：若当前小窗对应此视频，则退出 PiP
-        await exitPiP()
+      if (!inView) {
+        // 离开可视区：自动进入 PiP（仅当未在 PiP 且视频在播）
+        const isPlaying = !v.paused && !v.ended && v.readyState > 2
+        if (isPlaying && !isPiPActive(v)) {
+          await enterPiP()
+        }
+      } else {
+        // 回到可视区：只要当前在 PiP 就退出
+        if (isPiPActive(v)) {
+          // 避免和浏览器内部的布局/滚动同帧竞争，延后到宏任务
+          setTimeout(() => { void exitPiP() }, 0)
+        }
       }
     } catch (err) {
       console.warn('Auto PiP toggle failed:', err)
     }
-  }, { threshold: [0, 0.5, 1] })
+  }, {
+    root: null,
+    rootMargin: '0px 0px -60px 0px',
+    threshold: [0, 0.5, 1]
+  })
 
-  // 观察"视频区域"容器，而不是 video 元素本身（容器可控性更好）
-  observer.value.observe(videoSectionRef.value)
+  // 观察 video 元素本身
+  observer.value.observe(videoElement.value)
+}
 
-  // 附加：监听 PiP 事件（双保险；也便于 UI 联动）
-  const v = videoElement.value
-  v?.addEventListener('enterpictureinpicture', onEnterPiP as EventListener)
-  v?.addEventListener('leavepictureinpicture', onLeavePiP as EventListener)
+// ===== 事件绑定建议（避免重复绑定）=====
+const lastBoundVideo = ref<HTMLVideoElement | null>(null)
+
+const unbindPiPEvents = () => {
+  const prev = lastBoundVideo.value
+  if (!prev) return
+  prev.removeEventListener('enterpictureinpicture', onEnterPiP as EventListener)
+  prev.removeEventListener('leavepictureinpicture', onLeavePiP as EventListener)
+  if (safariModeChangedHandler.value && hasWebKitPresentation(prev)) {
+    prev.removeEventListener('webkitpresentationmodechanged', safariModeChangedHandler.value as EventListener)
+    safariModeChangedHandler.value = null
+  }
+  lastBoundVideo.value = null
+}
+
+const bindPiPEvents = () => {
+  const v = videoElement.value!
+  if (!v) return
+  if (lastBoundVideo.value === v) return
+  // 换源或首次绑定：先解绑旧的
+  unbindPiPEvents()
+  // 标准事件
+  v.addEventListener('enterpictureinpicture', onEnterPiP as EventListener, { passive: true } as AddEventListenerOptions)
+  v.addEventListener('leavepictureinpicture', onLeavePiP as EventListener, { passive: true } as AddEventListenerOptions)
+  // Safari 兼容事件
+  if (hasWebKitPresentation(v)) {
+    const wv = v as VideoWithWebKit
+    const handler = () => {
+      pipActive.value = wv.webkitPresentationMode === 'picture-in-picture'
+    }
+    v.addEventListener('webkitpresentationmodechanged', handler as EventListener, { passive: true } as AddEventListenerOptions)
+    safariModeChangedHandler.value = handler
+  }
+  lastBoundVideo.value = v
 }
 
 // 可选增强：切到后台时自动进入 PiP
 const onVisibilityChange = async () => {
-  if (!canUsePiP) return
   const v = videoElement.value
   if (!v) return
 
@@ -628,7 +687,7 @@ const onVisibilityChange = async () => {
   const isPlaying = !v.paused && !v.ended && v.readyState > 2
 
   try {
-    if (document.hidden && isPlaying && !document.pictureInPictureElement) {
+  if (document.hidden && isPlaying && !isPiPActive(v)) {
       await enterPiP()
     }
   } catch {
@@ -806,12 +865,14 @@ watch(
 // 当视频源变化时，等待节点渲染完成后重新初始化观察器
 watch(() => videoSrc.value, async () => {
   await nextTick()
+  bindPiPEvents()
   initVideoObserver()
 })
 
 // 生命周期管理
 onMounted(async () => {
   await nextTick()
+  bindPiPEvents()
   initVideoObserver()
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
@@ -823,8 +884,14 @@ onUnmounted(() => {
 
   // 移除 PiP 事件监听
   const v = videoElement.value
-  v?.removeEventListener('enterpictureinpicture', onEnterPiP as EventListener)
-  v?.removeEventListener('leavepictureinpicture', onLeavePiP as EventListener)
+  if (v) {
+    v.removeEventListener('enterpictureinpicture', onEnterPiP as EventListener)
+    v.removeEventListener('leavepictureinpicture', onLeavePiP as EventListener)
+    if (safariModeChangedHandler.value) {
+      v.removeEventListener('webkitpresentationmodechanged', safariModeChangedHandler.value as EventListener)
+      safariModeChangedHandler.value = null
+    }
+  }
 
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
