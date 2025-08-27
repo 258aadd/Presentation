@@ -588,8 +588,104 @@ const processedGeneralSuggestions = computed(() => {
 
   const fixed = fixOrderedListNumbers(original)
   const withLists = explicitNumberOrderedLists(fixed)
-  return addSectionSeparators(withLists)
+  const withSeparators = addSectionSeparators(withLists)
+  return addHighlightToSections(withSeparators)
 })
+
+// —— 替换原先的 addHighlightToSections ——
+// 只对“三个明确标题”做严格匹配；严格限定“从该 h3 到下一个 h3/分隔符”为一个 section
+function addHighlightToSections(html: string): string {
+  // SSR 保护：在服务端渲染阶段直接返回原 HTML
+  if (typeof window === 'undefined') return html;
+
+  const container = document.createElement('div');
+  container.innerHTML = html;
+
+  // 1) 精准定义：标题 → 高亮类（由右侧“勾选项”决定是否启用）
+  const opt = polishTextOptions.value; // 显式建立响应式依赖
+  const titleToClass: Record<string, string | null> = {
+    '文本结构': opt.showTextStructure ? 'highlight-text-structure' : null,
+    '内容结构优化': opt.showTextStructure ? 'highlight-text-structure' : null,
+    '语流呈现': opt.showSpeechFlow ? 'highlight-speech-flow' : null,
+    '语言表达': opt.showLanguageExpression ? 'highlight-language-expression' : null,
+  };
+
+  // 2) 规范化标题文本：去空白/全角空格，统一冒号，便于“严格等值”判断
+  const normalize = (s: string) =>
+    (s || '')
+      .replace(/\u00A0/g, ' ')   // nbsp → space
+      .replace(/[：:]/g, ':')     // 冒号统一
+      .replace(/\s+/g, '')        // 去所有空白
+      .trim();
+
+  // 3) 可能存在重复计算：把既有高亮类先清理，避免叠加/嵌套
+  const allHighlightClasses = [
+    'highlight-text-structure',
+    'highlight-speech-flow',
+    'highlight-language-expression',
+  ];
+  container
+    .querySelectorAll<HTMLElement>('.highlight-text-structure, .highlight-speech-flow, .highlight-language-expression')
+    .forEach(el => {
+      // 不“拆 wrapper”，仅移除类，防止破坏段落语义
+      el.classList.remove(...allHighlightClasses);
+    });
+
+  // 4) 逐个 h3 精确处理：只要“标题严格等于三者之一”，才高亮该 h3 所在段
+  const headings = Array.from(container.querySelectorAll('h3'));
+  for (const h3 of headings) {
+    const text = normalize(h3.textContent || '');
+
+    // 决定是否需要高亮及用哪个类
+    let highlightClass: string | null = null;
+    for (const key of Object.keys(titleToClass)) {
+      if (normalize(key) === text) {
+        highlightClass = titleToClass[key];
+        break;
+      }
+    }
+
+    // 收集：从当前 h3 开始到“下一个 h3 或 .section-separator”之前，视为一个 section
+    const sectionNodes: Node[] = [];
+    let cursor: Node | null = h3.nextSibling;
+    while (cursor) {
+      if (
+        cursor.nodeType === 1 &&
+        (
+          (cursor as HTMLElement).tagName === 'H3' ||
+          (cursor as HTMLElement).classList?.contains('section-separator')
+        )
+      ) break;
+      const next = cursor.nextSibling;
+      sectionNodes.push(cursor);
+      cursor = next;
+    }
+
+    // 如果不需要高亮，确保当前段不残留任何高亮类（已在步骤 3 清理），然后跳过
+    if (!highlightClass) continue;
+
+    // 若上一轮已用“高亮容器”包裹，则复用容器并替换类；否则创建容器包裹
+    const parentEl = h3.parentElement as HTMLElement | null;
+    const parentHasHighlight =
+      !!parentEl && allHighlightClasses.some(cls => parentEl.classList.contains(cls));
+
+    if (parentHasHighlight) {
+      // 复用已有 wrapper：先清掉所有高亮类，再加当前的
+      parentEl!.classList.remove(...allHighlightClasses);
+      parentEl!.classList.add(highlightClass);
+    } else {
+      // 创建 wrapper，把 h3 及本段内容一并包进去（也可只包内容，看你的需求）
+      const wrapper = document.createElement('div');
+      wrapper.className = highlightClass;
+      h3.parentNode?.insertBefore(wrapper, h3);
+      wrapper.appendChild(h3);
+      for (const n of sectionNodes) wrapper.appendChild(n);
+    }
+  }
+
+  return container.innerHTML;
+}
+
 
 const loadContent = async () => {
   if (!props.userId || !props.title) {
@@ -980,6 +1076,56 @@ defineExpose({
   margin: 0 0 0.5em 0;
   padding: 0;
 }
+
+/* —— 放在非 scoped 的 <style> 里 —— */
+
+.markdown-content .highlight-text-structure {
+  background: linear-gradient(135deg, rgba(255, 138, 0, 0.08) 0%, rgba(255, 165, 0, 0.05) 100%);
+  border-left: 4px solid #FF8A00;
+  border-radius: 12px;
+  padding: 15px 20px;
+  margin: 12px 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 138, 0, 0.1);
+}
+
+.markdown-content .highlight-speech-flow {
+  background: linear-gradient(135deg, rgba(139, 69, 19, 0.08) 0%, rgba(160, 82, 45, 0.05) 100%);
+  border-left: 4px solid #8B4513;
+  border-radius: 12px;
+  padding: 15px 20px;
+  margin: 12px 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(139, 69, 19, 0.1);
+}
+
+.markdown-content .highlight-language-expression {
+  background: linear-gradient(135deg, rgba(0, 100, 0, 0.08) 0%, rgba(34, 139, 34, 0.05) 100%);
+  border-left: 4px solid #006400;
+  border-radius: 12px;
+  padding: 15px 20px;
+  margin: 12px 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 100, 0, 0.1);
+}
+
+/* hover 效果（可选） */
+.markdown-content .highlight-text-structure:hover {
+  background: linear-gradient(135deg, rgba(255, 138, 0, 0.12) 0%, rgba(255, 165, 0, 0.08) 100%);
+  box-shadow: 0 4px 16px rgba(255, 138, 0, 0.2);
+  transform: translateY(-1px);
+}
+.markdown-content .highlight-speech-flow:hover {
+  background: linear-gradient(135deg, rgba(139, 69, 19, 0.12) 0%, rgba(160, 82, 45, 0.08) 100%);
+  box-shadow: 0 4px 16px rgba(139, 69, 19, 0.2);
+  transform: translateY(-1px);
+}
+.markdown-content .highlight-language-expression:hover {
+  background: linear-gradient(135deg, rgba(0, 100, 0, 0.12) 0%, rgba(34, 139, 34, 0.08) 100%);
+  box-shadow: 0 4px 16px rgba(0, 100, 0, 0.2);
+  transform: translateY(-1px);
+}
+
 </style>
 
 <style scoped>
@@ -2176,7 +2322,7 @@ defineExpose({
   height: 100%;
 }
 
-/* 防止负外边距把内容“顶出”圆角与边框，看起来不对齐 */
+/* 防止负外边距把内容"顶出"圆角与边框，看起来不对齐 */
 .text-box {
   box-sizing: border-box;
   overflow: hidden;
@@ -2186,6 +2332,64 @@ defineExpose({
 .text-content {
   margin: 0;                 /* 原来是：margin: 0 -25px -25px -25px; */
   /* 如需保留底部紧贴效果，可用：margin: 0 0 -25px 0; */
+}
+
+/* 总体建议中的高亮显示样式 */
+.highlight-text-structure {
+  background: linear-gradient(135deg, rgba(255, 138, 0, 0.08) 0%, rgba(255, 165, 0, 0.05) 100%);
+  border-left: 4px solid #FF8A00;
+  border-radius: 12px;
+  padding: 15px 20px;
+  margin: 12px 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 138, 0, 0.1);
+}
+
+.highlight-speech-flow {
+  background: linear-gradient(135deg, rgba(139, 69, 19, 0.08) 0%, rgba(160, 82, 45, 0.05) 100%);
+  border-left: 4px solid #8B4513;
+  border-radius: 12px;
+  padding: 15px 20px;
+  margin: 12px 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(139, 69, 19, 0.1);
+}
+
+.highlight-language-expression {
+  background: linear-gradient(135deg, rgba(0, 100, 0, 0.08) 0%, rgba(34, 139, 34, 0.05) 100%);
+  border-left: 4px solid #006400;
+  border-radius: 12px;
+  padding: 15px 20px;
+  margin: 12px 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 100, 0, 0.1);
+}
+
+/* 高亮区域的标题样式增强 */
+.highlight-text-structure h3,
+.highlight-speech-flow h3,
+.highlight-language-expression h3 {
+  margin-top: 0 !important;
+  position: relative;
+}
+
+/* 高亮区域的悬停效果 */
+.highlight-text-structure:hover {
+  background: linear-gradient(135deg, rgba(255, 138, 0, 0.12) 0%, rgba(255, 165, 0, 0.08) 100%);
+  box-shadow: 0 4px 16px rgba(255, 138, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.highlight-speech-flow:hover {
+  background: linear-gradient(135deg, rgba(139, 69, 19, 0.12) 0%, rgba(160, 82, 45, 0.08) 100%);
+  box-shadow: 0 4px 16px rgba(139, 69, 19, 0.2);
+  transform: translateY(-1px);
+}
+
+.highlight-language-expression:hover {
+  background: linear-gradient(135deg, rgba(0, 100, 0, 0.12) 0%, rgba(34, 139, 34, 0.08) 100%);
+  box-shadow: 0 4px 16px rgba(0, 100, 0, 0.2);
+  transform: translateY(-1px);
 }
 
 
