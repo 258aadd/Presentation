@@ -1143,7 +1143,7 @@ defineExpose({
   gap: 25px;
   margin-bottom: 40px;
 
-  align-items: start;
+  align-items: stretch;
   /* align-items: stretch;
 
 
@@ -2065,10 +2065,15 @@ defineExpose({
   min-width: 0;
 }
 
-/* 左侧总体建议卡片拉满剩余列高，与右侧底边对齐 */
 .left-column .text-box {
   flex: 1;
-  min-height: 0;   /* 不要用 unset，明确允许收缩 */
+  min-height: 0;
+  height: 100%;
+}
+
+.right-column .text-box {
+  flex: 1;
+  min-height: 0;
   height: 100%;
 }
 
