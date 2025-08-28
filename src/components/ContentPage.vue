@@ -28,8 +28,17 @@
 
       <!-- 主要内容区域 - 新的左右布局 -->
       <div class="main-content-layout">
-        <!-- 左侧：视频和总体建议 -->
+        <!-- 左侧：总体建议和视频 -->
         <div class="left-column">
+          <!-- 总体建议 -->
+          <div class="text-box">
+            <h3>💡 总体建议</h3>
+            <div class="text-content">
+              <div v-if="processedGeneralSuggestions" class="markdown-content" v-html="processedGeneralSuggestions"></div>
+              <div v-else class="no-content">暂无总体建议内容</div>
+            </div>
+          </div>
+
           <!-- 视频部分 -->
           <div ref="videoSectionRef" class="video-section">
             <h3>🎬 视频内容</h3>
@@ -52,15 +61,6 @@
             <!-- 自动悬浮播放状态显示 -->
             <div v-if="videoSrc && pipActive" class="pip-status-display">
               <span class="pip-status">正在悬浮播放</span>
-            </div>
-          </div>
-
-          <!-- 总体建议 -->
-          <div class="text-box">
-            <h3>💡 总体建议</h3>
-            <div class="text-content">
-              <div v-if="processedGeneralSuggestions" class="markdown-content" v-html="processedGeneralSuggestions"></div>
-              <div v-else class="no-content">暂无总体建议内容</div>
             </div>
           </div>
         </div>
