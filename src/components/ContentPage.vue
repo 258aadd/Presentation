@@ -31,9 +31,9 @@
         <!-- 左侧：总体建议和视频 -->
         <div class="left-column">
           <!-- 总体建议 -->
-          <div class="text-box">
+          <div class="text-box" ref="generalBoxRef">
             <h3>💡 总体建议</h3>
-            <div class="text-content">
+            <div class="text-content" ref="generalTextContentRef" :style="generalScrollStyle">
               <div v-if="processedGeneralSuggestions" class="markdown-content" v-html="processedGeneralSuggestions"></div>
               <div v-else class="no-content">暂无总体建议内容</div>
             </div>
@@ -107,7 +107,7 @@
                 </label>
               </div>
             </div>
-            <div class="text-content">
+            <div class="text-content" ref="polishTextContentRef">
               <!-- ① 最上方：用户编辑文本（把你原来最下方“用户编辑文本”那整段原样搬到这里） -->
               <!-- ⬇️ 若你想直接用变量写死，可用下面这段替换为你的原块 -->
               <!--
@@ -1006,6 +1006,123 @@ const escapeHtml = (text: string): string => {
     .replace(/'/g, '&#39;')
 }
 
+const generalBoxRef = ref<HTMLElement | null>(null)
+const generalTextContentRef = ref<HTMLElement | null>(null)
+const polishTextContentRef = ref<HTMLElement | null>(null)
+
+const needScrollbar = ref(false)
+const suggestionsMaxHeight = ref(0)
+
+const generalScrollStyle = computed(() => {
+  if (needScrollbar.value && suggestionsMaxHeight.value > 0) {
+    return { height: `${suggestionsMaxHeight.value}px`, overflowY: 'auto' } as Record<string, string>
+  }
+  return { height: 'auto', overflowY: 'auto' }
+})
+
+const HYSTERESIS = 8       // 迟滞阈值，避免边界来回切换
+const MIN_MAXH   = 80      // 最小可读高度
+
+const getVerticalGap = (a: HTMLElement | null, b: HTMLElement | null) => {
+  const parent = a?.parentElement
+  if (parent) {
+    const rg = parseFloat(getComputedStyle(parent).rowGap || '0')
+    if (rg > 0) return rg
+  }
+  const mb = a ? parseFloat(getComputedStyle(a).marginBottom || '0') : 0
+  const mt = b ? parseFloat(getComputedStyle(b).marginTop || '0') : 0
+  return mb + mt
+}
+
+const recomputeSuggestionsHeight = () => {
+  const right   = polishTextContentRef.value
+  const video   = videoSectionRef.value
+  const box     = generalBoxRef.value
+  const content = generalTextContentRef.value
+  if (!right || !box || !content) return
+
+  const chromeH = Math.max(0, box.clientHeight - content.clientHeight) // 标题/内边距等“壳层”
+  const rightH  = right.clientHeight
+  const videoH  = video?.clientHeight ?? 0
+  const gap     = getVerticalGap(box, video)
+
+  // 临时解除限制测“自然高度”，同一帧立即还原，不会闪
+  const prevH  = content.style.height
+  const prevOv = content.style.overflowY
+  content.style.height = 'auto'
+  content.style.overflowY = 'visible'
+  void content.offsetHeight   // 强制回流
+  const contentFullH = content.scrollHeight
+  content.style.height = prevH
+  content.style.overflowY = prevOv
+
+  const allowed = Math.floor(rightH - (videoH + gap + chromeH))
+
+  // 边界：右侧太短或右侧已经能容纳全文，都不加限制（防抖动）
+  if (!Number.isFinite(allowed) ||
+      allowed >= contentFullH - HYSTERESIS ||
+      allowed <= MIN_MAXH - HYSTERESIS) {
+    if (needScrollbar.value || suggestionsMaxHeight.value !== 0) {
+      needScrollbar.value = false
+      suggestionsMaxHeight.value = 0
+    }
+    return
+  }
+
+  // 需要滚动：只在有明显变化时更新，避免 1~2px 抖
+  const target = Math.max(MIN_MAXH, Math.min(allowed, contentFullH))
+  if (!needScrollbar.value || Math.abs(target - suggestionsMaxHeight.value) > HYSTERESIS) {
+    needScrollbar.value = true
+    suggestionsMaxHeight.value = target
+  }
+}
+
+let sizeObserver: ResizeObserver | null = null
+let rafId = 0
+let debounceId = 0
+const onWindowResize = () => scheduleRecompute(false)
+
+const scheduleRecompute = (debounced = false) => {
+  if (debounced) {
+    if (debounceId) clearTimeout(debounceId)
+    debounceId = window.setTimeout(() => {
+      if (rafId) cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => { rafId = 0; recomputeSuggestionsHeight() })
+    }, 100)
+  } else {
+    if (rafId) cancelAnimationFrame(rafId)
+    rafId = requestAnimationFrame(() => { rafId = 0; recomputeSuggestionsHeight() })
+  }
+}
+
+onMounted(async () => {
+  await nextTick()
+  try {
+    // 只观察右侧内容区与视频区；不要观察“总体建议卡片”，避免自激振荡
+    sizeObserver = new ResizeObserver(() => scheduleRecompute(false))
+
+    // polishTextContentRef.value && sizeObserver.observe(polishTextContentRef.value)
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    videoSectionRef.value && sizeObserver.observe(videoSectionRef.value)
+  } catch {}
+  window.addEventListener('resize', onWindowResize)
+  scheduleRecompute(false)
+})
+
+onUnmounted(() => {
+  sizeObserver?.disconnect()
+  sizeObserver = null
+  window.removeEventListener('resize', onWindowResize)
+})
+
+// 文本或选项变化后，合并更新
+watch(
+  [processedGeneralSuggestions, filteredPolishedText, showOriginalText, polishTextOptions],
+  async () => { await nextTick(); scheduleRecompute(true) },
+  { deep: true }
+)
+
+
 // 监听props变化，重新加载内容
 watch(
   () => [props.userId, props.title],
@@ -1426,12 +1543,31 @@ defineExpose({
   padding: 25px;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
-  /* min-height: 220px;
+  min-height: 0;
   display: flex;
-  flex-direction: column; */
+  flex-direction: column;
   box-shadow: 0 4px 20px rgba(0,0,0,0.06);
   transition: all 0.3s ease;
+  box-sizing:border-box;
 }
+
+.text-box > .text-content {
+  flex: 1 1 auto;
+  min-height: 0;            /* 关键：避免被子元素撑死 */
+  overflow-y: auto;         /* 只有设置了 max-height 才会出现滚动条 */
+  box-sizing:border-box;
+}
+
+/* 让滚动容器视觉上“贴底” */
+.text-box > .text-content > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 若内部有更深一层容器（例如 .advice-item / section），一并兜底 */
+.text-box > .text-content > * > *:last-child {
+  margin-bottom: 0 !important;
+}
+
 
 .text-box:hover {
   box-shadow: 0 8px 30px rgba(0,0,0,0.12);
@@ -1454,7 +1590,7 @@ defineExpose({
   /* 移除固定高度、overflow、padding调整等 */
 }
 
-/* .text-content {
+.text-content {
   flex: 1 1 auto;
   min-height: 0;
   height: auto;
@@ -1469,7 +1605,7 @@ defineExpose({
   margin: 0 -25px -25px -25px;
   scrollbar-width: thin;
   scrollbar-color: #667eea #f1f5f9;
-} */
+}
 
 
 /* Webkit浏览器滚动条样式 */
@@ -1998,11 +2134,16 @@ defineExpose({
     align-items: stretch; /* 保持拉伸对齐 */
   }
 
-  .left-column,
+
   .right-column {
     gap: 15px;
     height: auto; /* 移动端不强制高度 */
   }
+
+  .left-column,
+.text-box {
+  min-height: 0;         /* 允许子元素在容器中收缩 */
+}
 
   /* 移动端取消flex填充，恢复自然高度 */
   .left-column .text-box,
